@@ -17,8 +17,8 @@ def seed_default_user(db: Session) -> None:
         return
     db.execute(
         text(
-            "INSERT INTO users (username, email, password, daily_word_count) "
-            "VALUES ('admin', 'admin@kaoyan.com', :password, 20)"
+            "INSERT INTO users (username, email, password, daily_word_count, batch_size, study_mode) "
+            "VALUES ('admin', 'admin@kaoyan.com', :password, 20, 20, 'mixed')"
         ),
         {"password": _admin_password_hash()},
     )
@@ -66,8 +66,8 @@ def seed_words(db: Session) -> None:
     for word in SAMPLE_WORDS:
         db.execute(
             text(
-                "INSERT INTO words (word, phonetic, meaning, example_sentence, difficulty, frequency, exam_requirement) "
-                "VALUES (:word, :phonetic, :meaning, :example, :diff, :freq, :req)"
+                "INSERT INTO words (word, phonetic, meaning, example_sentence, difficulty, frequency, exam_requirement, category) "
+                "VALUES (:word, :phonetic, :meaning, :example, :diff, :freq, :req, 'CET-4')"
             ),
             {
                 "word": word[0],

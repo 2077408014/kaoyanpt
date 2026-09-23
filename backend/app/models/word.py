@@ -13,8 +13,8 @@ class Word(Base):
     example_sentence = Column(Text, nullable=True)
     difficulty = Column(Integer, nullable=False, default=1)
     frequency = Column(Integer, nullable=False, default=0)
-    exam_requirement = Column(String(20), nullable=False, default="考纲")
-    category = Column(String(20), nullable=False, default="CET-4")
+    exam_requirement = Column(String(20), nullable=False, default="考纲", server_default="考纲")
+    category = Column(String(20), nullable=False, default="CET-4", server_default="CET-4")
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
 
 class UserWord(Base):
@@ -30,6 +30,6 @@ class UserWord(Base):
     last_study_date = Column(DateTime(timezone=True), nullable=True)
     first_study_date = Column(Date, nullable=True)
     last_rating = Column(String(20), nullable=True)
-    srs_stage = Column(Integer, nullable=False, default=0)
+    srs_stage = Column(Integer, nullable=False, default=0, server_default="0")
 
     word = relationship("Word", lazy="joined")
