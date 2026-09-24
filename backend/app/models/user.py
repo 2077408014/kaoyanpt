@@ -15,6 +15,7 @@ class User(Base):
     batch_size = Column(Integer, nullable=False, default=20, server_default="20")
     study_mode = Column(String(20), nullable=False, default="mixed", server_default="mixed")
     study_session_json = Column(Text, nullable=True)
+    push_settings_json = Column(Text, nullable=True)
     ai_api_key = Column(String(500), nullable=True)
     ai_api_base_url = Column(String(255), nullable=True)
     ai_api_model = Column(String(100), nullable=True)
