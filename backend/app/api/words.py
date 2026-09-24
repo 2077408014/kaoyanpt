@@ -275,6 +275,47 @@ async def answer_quiz(
     return word_service.answer_quiz(db, current_user.id, data)
 
 
+@router.get("/records")
+async def get_records(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return word_service.get_records_summary(db, current_user.id, page, page_size)
+
+
+@router.get("/records/export")
+async def export_records(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from fastapi.responses import StreamingResponse
+    import urllib.parse
+    blob = word_service.export_records(db, current_user.id)
+    filename = urllib.parse.quote(f"背诵记录_{current_user.username}.xlsx")
+    return StreamingResponse(
+        iter([blob]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
+    )
+
+
+@router.post("/records/import")
+async def import_records(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
+        raise HTTPException(status_code=400, detail="仅支持 xlsx 文件")
+    contents = await file.read()
+    result = word_service.import_records(db, current_user.id, contents, file.filename)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message", "导入失败"))
+    return result
+
+
 @router.get("/session")
 async def get_study_session(
     db: Session = Depends(get_db),

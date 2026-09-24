@@ -456,6 +456,132 @@ class WordService:
         )
         return self.study_word(db, user_id, req)
 
+    def get_records_summary(self, db: Session, user_id: int, page: int = 1, page_size: int = 10) -> dict:
+        base = db.query(
+            StudyRecord.session_id,
+            StudyRecord.source,
+            func.min(StudyRecord.created_at).label("created_at"),
+            func.count(StudyRecord.id).label("total"),
+            func.sum(case((StudyRecord.rating == "忘记", 1), else_=0)).label("forgot"),
+            func.sum(case((StudyRecord.rating == "困难", 1), else_=0)).label("hard"),
+            func.sum(case((StudyRecord.rating == "一般", 1), else_=0)).label("good"),
+            func.sum(case((StudyRecord.rating == "认识", 1), else_=0)).label("known"),
+        ).filter(StudyRecord.user_id == user_id).group_by(StudyRecord.session_id)
+        total = base.count()
+        rows = base.order_by(func.min(StudyRecord.created_at).desc()).offset((page - 1) * page_size).limit(page_size).all()
+        items = [{
+            "session_id": r.session_id,
+            "source": r.source,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "total": r.total,
+            "forgot": r.forgot or 0,
+            "hard": r.hard or 0,
+            "good": r.good or 0,
+            "known": r.known or 0,
+        } for r in rows]
+        return {"total": total, "items": items}
+
+    def export_records(self, db: Session, user_id: int) -> bytes:
+        from openpyxl import Workbook
+        records = db.query(StudyRecord).filter(
+            StudyRecord.user_id == user_id
+        ).order_by(StudyRecord.created_at.asc()).all()
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "背诵记录"
+        ws.append(["日期", "会话ID", "单词", "音标", "释义", "评级", "测验结果", "来源"])
+        for r in records:
+            quiz = ""
+            if r.quiz_result is True:
+                quiz = "对"
+            elif r.quiz_result is False:
+                quiz = "错"
+            ws.append([
+                r.created_at.strftime("%Y-%m-%d %H:%M:%S") if r.created_at else "",
+                r.session_id, r.word, r.phonetic or "", r.meaning, r.rating, quiz, r.source,
+            ])
+
+        ws2 = wb.create_sheet("会话汇总")
+        ws2.append(["会话ID", "来源", "时间", "单词数", "忘记", "困难", "一般", "认识"])
+        groups = {}
+        for r in records:
+            g = groups.setdefault(r.session_id, {"source": r.source, "count": 0, "forgot": 0, "hard": 0, "good": 0, "known": 0, "time": r.created_at})
+            g["count"] += 1
+            if r.rating == "忘记":
+                g["forgot"] += 1
+            elif r.rating == "困难":
+                g["hard"] += 1
+            elif r.rating == "一般":
+                g["good"] += 1
+            elif r.rating == "认识":
+                g["known"] += 1
+        for sid, g in groups.items():
+            ws2.append([
+                sid, g["source"],
+                g["time"].strftime("%Y-%m-%d %H:%M:%S") if g["time"] else "",
+                g["count"], g["forgot"], g["hard"], g["good"], g["known"],
+            ])
+
+        buf = BytesIO()
+        wb.save(buf)
+        return buf.getvalue()
+
+    def import_records(self, db: Session, user_id: int, content: bytes, filename: str) -> dict:
+        from openpyxl import load_workbook
+        try:
+            wb = load_workbook(BytesIO(content), read_only=True)
+        except Exception as e:
+            return {"success": False, "message": f"无法解析 xlsx: {e}", "imported": 0, "failed": []}
+        ws = wb["背诵记录"] if "背诵记录" in wb.sheetnames else wb.active
+        imported = 0
+        failed = []
+        today = date.today()
+        for idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+            if not row or len(row) < 6:
+                continue
+            word_text = (row[2] or "").strip()
+            if not word_text:
+                continue
+            phonetic = (row[3] or "").strip()
+            meaning = (row[4] or "").strip()
+            word = db.query(Word).filter(
+                or_(Word.user_id.is_(None), Word.user_id == user_id),
+                Word.word == word_text,
+            ).first()
+            if not word:
+                word = Word(
+                    word=word_text, phonetic=phonetic or None, meaning=meaning or "",
+                    difficulty=1, frequency=0, exam_requirement="记录导入",
+                    category="我的词书", user_id=user_id,
+                )
+                db.add(word)
+                db.flush()
+            uw = db.query(UserWord).filter(
+                UserWord.user_id == user_id, UserWord.word_id == word.id
+            ).first()
+            if not uw:
+                uw = UserWord(
+                    user_id=user_id, word_id=word.id, srs_status="reviewed",
+                    mastery_level="掌握", difficulty=DEFAULT_DIFFICULTY,
+                    days_between_reviews=DEFAULT_DAYS_BETWEEN_REVIEWS,
+                    next_review_date=today, review_count=0, correct_count=0,
+                    first_study_date=today,
+                )
+                db.add(uw)
+            else:
+                uw.srs_status = "reviewed"
+                uw.mastery_level = "掌握"
+                uw.next_review_date = today
+            imported += 1
+        db.commit()
+        return {
+            "success": True,
+            "message": f"成功导入 {imported} 个单词为今日复习",
+            "imported": imported,
+            "failed": failed,
+        }
+
     def get_push_config(self, db: Session, user_id: int) -> dict:
         user = db.query(User).filter(User.id == user_id).first()
         if user and user.push_settings_json:
