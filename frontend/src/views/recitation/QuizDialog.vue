@@ -7,9 +7,9 @@
     :show-close="false"
     @close="$emit('close')"
   >
-    <template v-if="stat.total > 0">
-      <div class="quiz-progress">答对 {{ stat.correct }} / 已答 {{ stat.done }}</div>
-      <div v-if="current" class="quiz-body" :key="current.word_id + '-' + current.type">
+    <template v-if="current">
+      <div class="quiz-progress">答对 {{ stat.correct }} / 已答 {{ stat.done }} / 共 {{ stat.total }}</div>
+      <div class="quiz-body" :key="current.word_id + '-' + current.type">
         <div class="quiz-badge">{{ current.type }}</div>
         <h3 class="quiz-prompt">{{ current.prompt }}</h3>
         <div class="quiz-options">
@@ -31,14 +31,15 @@
     </template>
 
     <template v-else>
+      <div class="quiz-progress">答对 {{ stat.correct }} / 已答 {{ stat.done }} / 共 {{ stat.total }}</div>
       <el-empty description="测验完成！">
         <el-button type="primary" @click="$emit('close')">完成</el-button>
       </el-empty>
     </template>
 
-    <template #footer>
+    <template v-if="current" #footer>
       <el-button :disabled="feedback === null" type="primary" @click="next">
-        {{ feedback === null ? '请作答' : (queue.length ? '下一题' : '查看结果') }}
+        {{ feedback === null ? '请作答' : (queue.length || pendings.length ? '下一题' : '查看结果') }}
       </el-button>
     </template>
   </el-dialog>
