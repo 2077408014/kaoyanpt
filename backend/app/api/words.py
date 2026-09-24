@@ -189,13 +189,16 @@ async def study_word(
 ):
     result = word_service.study_word(db, current_user.id, data)
     return {
-        "id": result.id,
-        "mastery_level": result.mastery_level,
-        "next_review_date": result.next_review_date.isoformat() if result.next_review_date else None,
-        "review_count": result.review_count,
-        "correct_count": result.correct_count,
-        "last_rating": result.last_rating,
-        "srs_stage": result.srs_stage
+        "id": result["id"],
+        "word_id": result["word_id"],
+        "mastery_level": result["mastery_level"],
+        "next_review_date": result["next_review_date"],
+        "review_count": result["review_count"],
+        "correct_count": result["correct_count"],
+        "last_rating": result["last_rating"],
+        "srs_status": result["srs_status"],
+        "due_minutes": result["due_minutes"],
+        "srs_stage": result["srs_stage"]
     }
 
 

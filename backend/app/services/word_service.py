@@ -1,15 +1,24 @@
 import json
+import random
+import uuid as uuid_mod
+from datetime import date, datetime, timedelta
+from io import BytesIO
+from sqlalchemy import or_, case, func
 from sqlalchemy.orm import Session
-from datetime import date, timedelta
-from sqlalchemy import or_
-from ..models.word import Word, UserWord
+from ..models.word import Word, UserWord, StudyRecord
 from ..models.user import User
 from ..schemas.word import WordStudyRequest, StudyPlanRequest
-from ..utils.memory_curve import calculate_word_next_review, get_mastery_level_from_rating
+from ..utils.srs import (
+    RATING_SCORES, OLD_RATING_MAP, CORRECT_THRESHOLD,
+    DEFAULT_DIFFICULTY, DEFAULT_DAYS_BETWEEN_REVIEWS,
+    rate_srs, mastery_for_srs_status,
+)
 from ..utils.ocr_parse import ocr_parser
 from ..utils.wordbook_parser import parse_wordbook_text
 from .llm_service import llm_service
 from .ai_service import ai_service
+
+DEFAULT_PUSH_CONFIG = {"count": 10, "interval_seconds": 60, "category": None, "auto_play": True}
 
 AI_NORMALIZE_PROMPT = """你是一个英语词书文本标准化工具。将以下OCR识别出的词书文本转换成标准格式。
 
@@ -247,7 +256,11 @@ class WordService:
 
         return {"total": total, "items": paginated_items}
 
-    def study_word(self, db: Session, user_id: int, data: WordStudyRequest) -> UserWord:
+    def study_word(self, db: Session, user_id: int, data: WordStudyRequest) -> dict:
+        rating = OLD_RATING_MAP.get(data.result, data.result)
+        if rating not in RATING_SCORES:
+            raise ValueError(f"无效评级: {rating}")
+
         user_word = db.query(UserWord).filter(
             UserWord.user_id == user_id,
             UserWord.word_id == data.word_id
@@ -258,38 +271,68 @@ class WordService:
                 user_id=user_id,
                 word_id=data.word_id,
                 mastery_level="陌生",
+                srs_status="new",
+                difficulty=DEFAULT_DIFFICULTY,
+                days_between_reviews=DEFAULT_DAYS_BETWEEN_REVIEWS,
                 review_count=0,
                 correct_count=0,
-                srs_stage=0
             )
             db.add(user_word)
+            db.flush()
 
+        elapsed_days = 0
+        if user_word.srs_status == "reviewed" and user_word.next_review_date:
+            elapsed_days = max((date.today() - user_word.next_review_date).days, 0)
+        elif user_word.last_study_date:
+            elapsed_days = max((date.today() - user_word.last_study_date.date()).days, 0)
+
+        out = rate_srs(
+            user_word.srs_status, rating,
+            difficulty=user_word.difficulty,
+            days_between_reviews=user_word.days_between_reviews,
+            elapsed_days=elapsed_days,
+        )
+
+        user_word.srs_status = out["new_status"]
+        user_word.difficulty = round(out["difficulty"], 4)
+        user_word.days_between_reviews = round(out["days_between_reviews"], 4)
+        user_word.next_review_date = out["next_review_date"]
+        user_word.last_rating = rating
+        user_word.mastery_level = mastery_for_srs_status(out["new_status"])
         user_word.review_count += 1
-        user_word.last_rating = data.result
-
-        if data.result == "认识":
+        if RATING_SCORES[rating] >= CORRECT_THRESHOLD:
             user_word.correct_count += 1
-
-        # 首次学习日期
         if not user_word.first_study_date:
             user_word.first_study_date = date.today()
+        user_word.last_study_date = datetime.now()
 
-        # 更新掌握程度
-        user_word.mastery_level = get_mastery_level_from_rating(
-            data.result, user_word.mastery_level
-        )
-
-        # 使用新 SRS 算法计算下次复习时间
-        next_date, new_stage = calculate_word_next_review(
-            data.result, user_word.srs_stage
-        )
-        user_word.next_review_date = next_date
-        user_word.srs_stage = new_stage
-        user_word.last_study_date = date.today()
+        if data.session_id:
+            db.add(StudyRecord(
+                user_id=user_id,
+                session_id=data.session_id,
+                word_id=user_word.word_id,
+                word=getattr(user_word.word, "word", ""),
+                phonetic=getattr(user_word.word, "phonetic", None),
+                meaning=getattr(user_word.word, "meaning", ""),
+                rating=rating,
+                quiz_result=data.quiz_result,
+                source=data.source,
+            ))
 
         db.commit()
         db.refresh(user_word)
-        return user_word
+        return {
+            "id": user_word.id,
+            "word_id": user_word.word_id,
+            "mastery_level": user_word.mastery_level,
+            "next_review_date": user_word.next_review_date.isoformat() if user_word.next_review_date else None,
+            "review_count": user_word.review_count,
+            "correct_count": user_word.correct_count,
+            "last_rating": user_word.last_rating,
+            "srs_status": user_word.srs_status,
+            "due_minutes": out.get("due_minutes"),
+            "srs_stage": user_word.srs_stage,
+        }
 
     def get_study_plan(self, db: Session, user_id: int) -> dict:
         user = db.query(User).filter(User.id == user_id).first()

@@ -33,7 +33,10 @@ class UserWordResponse(BaseModel):
 
 class WordStudyRequest(BaseModel):
     word_id: int
-    result: str = Field(..., description="学习结果：认识/模糊/不认识")
+    result: str = Field(..., description="评级：忘记/困难/一般/认识（兼容旧三档）")
+    session_id: Optional[str] = Field(None, description="会话ID，用于背诵记录分组")
+    source: str = Field("card", description="来源：card/push/quiz")
+    quiz_result: Optional[bool] = Field(None, description="测验对错（source=quiz 时）")
 
 class StudyPlanRequest(BaseModel):
     daily_word_count: int = Field(..., ge=5, le=100, description="每日学习单词数量")
