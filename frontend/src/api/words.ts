@@ -59,7 +59,7 @@ export interface StudySession {
   current_round: number
   total_rounds: number
   round_queue: RoundQueueItem[]
-  round_stats: { known: number; vague: number; unknown: number }
+  round_stats: { forget: number; hard: number; good: number; known: number }
   global_index: number
   total_words_today: number
   study_mode: string

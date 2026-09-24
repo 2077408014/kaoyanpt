@@ -134,8 +134,9 @@
               </p>
             </div>
             <div class="study-buttons">
-              <el-button type="danger" size="large" @click="markResult('不认识')">不认识</el-button>
-              <el-button type="warning" size="large" @click="markResult('模糊')">模糊</el-button>
+              <el-button type="danger" size="large" @click="markResult('忘记')">忘记</el-button>
+              <el-button type="warning" size="large" @click="markResult('困难')">困难</el-button>
+              <el-button type="info" size="large" @click="markResult('一般')">一般</el-button>
               <el-button type="success" size="large" @click="markResult('认识')">认识</el-button>
             </div>
           </div>
@@ -283,17 +284,22 @@
             <span class="stat-label">认识</span>
           </div>
           <div class="round-stat-item warning">
-            <span class="stat-num">{{ roundStats.vague }}</span>
-            <span class="stat-label">模糊</span>
+            <span class="stat-num">{{ roundStats.good }}</span>
+            <span class="stat-label">一般</span>
           </div>
           <div class="round-stat-item danger">
-            <span class="stat-num">{{ roundStats.unknown }}</span>
-            <span class="stat-label">不认识</span>
+            <span class="stat-num">{{ roundStats.hard }}</span>
+            <span class="stat-label">困难</span>
+          </div>
+          <div class="round-stat-item danger">
+            <span class="stat-num">{{ roundStats.forget }}</span>
+            <span class="stat-label">忘记</span>
           </div>
         </div>
       </div>
       <template #footer>
         <el-button @click="exitStudy">退出背诵</el-button>
+        <el-button @click="startRoundQuiz">先测这一轮</el-button>
         <el-button type="primary" @click="startNextRound">开启下一轮</el-button>
       </template>
     </el-dialog>
@@ -314,6 +320,8 @@
         <el-button type="primary" @click="resumeSession">继续背诵</el-button>
       </template>
     </el-dialog>
+
+    <QuizDialog :visible="quizVisible" :word-ids="quizWordIds" @close="quizVisible = false" />
   </div>
 </template>
 
@@ -328,6 +336,7 @@ import {
   type Word, type UserWord, type TodayWordsResponse, type StudySession, type RoundQueueItem
 } from '../../api/words'
 import { useSpeech } from '@/composables/useSpeech'
+import QuizDialog from '@/views/recitation/QuizDialog.vue'
 
 const { speak: speakWord } = useSpeech()
 
@@ -359,7 +368,7 @@ const newCount = ref(0)
 const currentRound = ref(0)
 const totalRounds = ref(0)
 const roundQueue = ref<RoundQueueItem[]>([])
-const roundStats = reactive({ known: 0, vague: 0, unknown: 0 })
+const roundStats = reactive({ forget: 0, hard: 0, good: 0, known: 0 })
 const globalIndex = ref(0)
 const totalWordsToday = ref(0)
 const completedRounds = ref(0)
@@ -484,6 +493,11 @@ async function loadTodayWords() {
     const category = selectedCategory.value || undefined
     const result: TodayWordsResponse = await getTodayWords(dailyCount.value, category)
 
+    // 会话 ID：整页加载周期内保持稳定，用于背诵记录分组
+    if (!activeSessionId.value) {
+      activeSessionId.value = 'card_' + Date.now() + Math.random().toString(36).slice(2, 8)
+    }
+
     // 根据背诵模式排序单词
     if (studyMode.value === 'new_first') {
       todayWords.value = [...result.new, ...result.review]
@@ -556,9 +570,10 @@ async function startRound(roundNum: number) {
     repeatCount: 0
   }))
 
+  roundStats.forget = 0
+  roundStats.hard = 0
+  roundStats.good = 0
   roundStats.known = 0
-  roundStats.vague = 0
-  roundStats.unknown = 0
   showMeaning.value = false
   allRoundsComplete.value = false
 
@@ -570,44 +585,23 @@ async function markResult(result: string) {
 
   const word = currentWord.value
 
-  // 调用后端记录学习结果
   try {
-    await studyWord(word.wordId, result)
-  } catch {
-    // 本地回退
-  }
-
-  // 更新全局统计
-  wordStats.today++
-  if (result === '认识') {
-    wordStats.mastered++
-  }
-
-  // 防抖刷新后端统计（处理跨轮、跨批次的已学/已掌握口径差异）
-  scheduleStatsRefresh()
-
-  // 更新轮次内队列
-  if (result === '认识') {
-    roundStats.known++
-    roundQueue.value.shift()
-    globalIndex.value++
-  } else if (result === '模糊') {
-    roundStats.vague++
-    if (word.repeatCount < 2) {
-      // 重新插入队尾，重复次数+1
-      const item = roundQueue.value.shift()
+    const updated = await studyWord(word.wordId, result, {
+      session_id: activeSessionId.value || undefined,
+      source: 'card'
+    })
+    const statKey = result === '认识' ? 'known' : result === '一般' ? 'good' : result === '困难' ? 'hard' : 'forget'
+    roundStats[statKey]++
+    const item = roundQueue.value.shift()
+    if (updated?.srs_status !== 'reviewed') {
       if (item) {
         item.repeatCount++
         roundQueue.value.push(item)
       }
     } else {
-      // 已达到最大重复次数，移出队列
-      roundQueue.value.shift()
       globalIndex.value++
     }
-  } else if (result === '不认识') {
-    roundStats.unknown++
-    // 重新插入队尾，持续重复
+  } catch {
     const item = roundQueue.value.shift()
     if (item) {
       item.repeatCount++
@@ -615,12 +609,10 @@ async function markResult(result: string) {
     }
   }
 
+  scheduleStatsRefresh()
   showMeaning.value = false
-
-  // 保存进度
   await saveCurrentSession()
 
-  // 检查本轮是否完成
   if (roundQueue.value.length === 0) {
     completedRounds.value++
     roundCompleteVisible.value = true
@@ -657,13 +649,30 @@ function restartToday() {
   loadTodayWords()
 }
 
+const activeSessionId = ref('')
+
+const quizVisible = ref(false)
+const quizWordIds = ref<number[]>([])
+
+function startRoundQuiz() {
+  const start = (currentRound.value - 1) * batchSize.value
+  const end = Math.min(start + batchSize.value, totalWordsToday.value)
+  quizWordIds.value = todayWords.value.slice(start, end).map(w => w.id).filter(Boolean)
+  roundCompleteVisible.value = false
+  if (quizWordIds.value.length) {
+    quizVisible.value = true
+  } else {
+    ElMessage.warning('本轮没有单词可测验')
+  }
+}
+
 async function saveCurrentSession() {
   if (totalWordsToday.value === 0) return
   const session: StudySession = {
     current_round: currentRound.value,
     total_rounds: totalRounds.value,
     round_queue: roundQueue.value,
-    round_stats: { known: roundStats.known, vague: roundStats.vague, unknown: roundStats.unknown },
+    round_stats: { forget: roundStats.forget, hard: roundStats.hard, good: roundStats.good, known: roundStats.known },
     global_index: globalIndex.value,
     total_words_today: totalWordsToday.value,
     study_mode: studyMode.value,
@@ -709,9 +718,10 @@ async function resumeSession() {
     type: item.type,
     repeatCount: item.repeatCount || 0
   }))
-  roundStats.known = session.round_stats.known
-  roundStats.vague = session.round_stats.vague
-  roundStats.unknown = session.round_stats.unknown
+  roundStats.forget = session.round_stats?.forget ?? 0
+  roundStats.hard = session.round_stats?.hard ?? 0
+  roundStats.good = session.round_stats?.good ?? 0
+  roundStats.known = session.round_stats?.known ?? 0
   globalIndex.value = session.global_index
   totalWordsToday.value = session.total_words_today
   completedRounds.value = session.completed_rounds || 0
@@ -1021,7 +1031,7 @@ async function handleWordbookSelect(event: Event) {
 
 .round-stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
 }
 
