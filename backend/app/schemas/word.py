@@ -50,6 +50,12 @@ class PushConfig(BaseModel):
     category: Optional[str] = None
     auto_play: bool = True
 
+class QuizAnswerRequest(BaseModel):
+    word_id: int
+    selected: int = 0
+    correct: bool = True
+    session_id: Optional[str] = None
+
 class RoundWordItem(BaseModel):
     word_id: int
     type: str  # new / review

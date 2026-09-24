@@ -412,6 +412,50 @@ class WordService:
     def complete_session(self, db: Session, user_id: int, session_id: str) -> dict:
         return {"success": True, "session_id": session_id}
 
+    def generate_quiz(self, db: Session, user_id: int, word_ids: list, count: int = 8) -> list:
+        words = db.query(Word).filter(Word.id.in_(word_ids)).all()[:count]
+        if not words:
+            return []
+        ids = [w.id for w in words]
+        source = self._get_source_filter(user_id, None)
+        pool = db.query(Word).filter(~Word.id.in_(ids)).filter(source).all()
+        pool = [p for p in pool if p.word.strip()]
+        items = []
+        for i, w in enumerate(words):
+            qtype = "中译英" if i % 2 == 0 else "英译中"
+            if qtype == "中译英":
+                prompt = w.meaning
+                correct_text = w.word
+                distractors = [p.word for p in pool if p.word and p.word != w.word and p.meaning]
+            else:
+                prompt = w.word
+                correct_text = w.meaning
+                distractors = [p.meaning for p in pool if p.meaning and p.word != w.word and p.meaning]
+            unique_distractors = list(dict.fromkeys(distractors))[:3]
+            while len(unique_distractors) < 3:
+                unique_distractors.append("——")
+            choices = [correct_text] + unique_distractors
+            random.shuffle(choices)
+            options = [{"index": k, "text": t} for k, t in enumerate(choices)]
+            items.append({
+                "type": qtype,
+                "word_id": w.id,
+                "prompt": prompt,
+                "options": options,
+                "correct": choices.index(correct_text),
+            })
+        return items
+
+    def answer_quiz(self, db: Session, user_id: int, data) -> dict:
+        req = WordStudyRequest(
+            word_id=data.word_id,
+            result="一般" if data.correct else "忘记",
+            session_id=data.session_id,
+            source="quiz",
+            quiz_result=data.correct,
+        )
+        return self.study_word(db, user_id, req)
+
     def get_push_config(self, db: Session, user_id: int) -> dict:
         user = db.query(User).filter(User.id == user_id).first()
         if user and user.push_settings_json:

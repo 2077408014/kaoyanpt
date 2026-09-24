@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, HTTPExcep
 from sqlalchemy.orm import Session
 from typing import Optional
 from ..core.database import get_db
-from ..schemas.word import WordResponse, WordStudyRequest, StudyPlanRequest, StudySessionData, PushConfig
+from ..schemas.word import WordResponse, WordStudyRequest, StudyPlanRequest, StudySessionData, PushConfig, QuizAnswerRequest
 from ..services.word_service import word_service
 from ..core.deps import get_current_user
 from ..models.user import User
@@ -253,6 +253,26 @@ async def save_push_config(
     current_user: User = Depends(get_current_user)
 ):
     return word_service.save_push_config(db, current_user.id, data.model_dump())
+
+
+@router.get("/quiz")
+async def generate_quiz(
+    word_ids: str = Query("", description="逗号分隔的单词ID"),
+    count: int = Query(8, ge=1, le=20),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    ids = [int(x) for x in word_ids.split(",") if x.strip().isdigit()]
+    return word_service.generate_quiz(db, current_user.id, ids, count)
+
+
+@router.post("/quiz/answer")
+async def answer_quiz(
+    data: QuizAnswerRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return word_service.answer_quiz(db, current_user.id, data)
 
 
 @router.get("/session")
