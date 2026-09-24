@@ -16,6 +16,9 @@
       <el-tab-pane label="弹卡背诵" name="push">
         <PushCards />
       </el-tab-pane>
+      <el-tab-pane label="背诵记录" name="records">
+        <RecordsModule />
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -27,6 +30,7 @@ import PoliticsModule from './recitation/PoliticsModule.vue'
 import ReminderModule from './recitation/ReminderModule.vue'
 import VoiceModule from './recitation/VoiceModule.vue'
 import PushCards from './recitation/PushCards.vue'
+import RecordsModule from './recitation/RecordsModule.vue'
 
 const activeTab = ref('words')
 </script>
