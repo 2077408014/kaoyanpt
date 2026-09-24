@@ -588,15 +588,19 @@ async function saveEdit() {
 }
 
 async function handleDelete(mistake: any) {
+  let confirmed = false
   try {
     await ElMessageBox.confirm('确定要删除这个错题吗？', '提示', {
       type: 'warning'
     })
+    confirmed = true
     await deleteMistakeApi(mistake.id)
     ElMessage.success('删除成功')
     loadMistakes()
-  } catch {
-    // 用户取消
+  } catch (error: any) {
+    if (confirmed) {
+      ElMessage.error(error.response?.data?.detail || '删除失败，请稍后重试')
+    }
   }
 }
 </script>

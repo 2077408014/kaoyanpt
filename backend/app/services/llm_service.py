@@ -86,7 +86,24 @@ class LLMService:
                 else:
                     raise ValueError(f"AI 服务调用失败（HTTP {response.status_code}）")
             data = response.json()
-            return data["choices"][0]["message"]["content"].strip()
+            try:
+                choice = data["choices"][0]
+                message = choice["message"]
+                finish_reason = choice.get("finish_reason")
+            except (KeyError, IndexError, TypeError):
+                raise ValueError("AI 服务返回数据格式异常，请检查模型配置")
+
+            content = (message.get("content") or "").strip()
+            reasoning_content = message.get("reasoning_content")
+
+            if not content:
+                if reasoning_content and finish_reason == "length":
+                    raise ValueError("AI 输出被截断：模型在推理阶段用尽输出额度，未生成正式答案，请重试或增大输出长度限制")
+                if reasoning_content:
+                    raise ValueError("AI 模型未返回正式内容，请检查模型配置或重试")
+                raise ValueError("AI 返回内容为空，请重试")
+
+            return content
         except requests.exceptions.Timeout:
             raise ValueError("AI 服务请求超时，请稍后重试")
         except requests.exceptions.ConnectionError:

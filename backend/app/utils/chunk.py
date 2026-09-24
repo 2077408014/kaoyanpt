@@ -27,7 +27,8 @@ class TextChunker:
                     "filename": filename,
                     "chunk_index": i,
                     "total_chunks": len(chunks),
-                    "chunk_size": len(chunk)
+                    "chunk_size": len(chunk),
+                    "content": chunk
                 }
             }
             chunk_list.append(chunk_dict)

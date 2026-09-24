@@ -8,6 +8,7 @@ from ..agents.orchestrator import recommendation_orchestrator
 from ..agents.specialized import register_all_agents
 from ..services.agent_log_service import agent_log_service
 from ..utils.latex_utils import normalize_latex
+from ..core.config import settings
 from .llm_service import llm_service
 
 
@@ -227,7 +228,7 @@ class RecommendationService:
                         ai_config=user_config,
                         system_prompt=system_prompt,
                         temperature=0.5,
-                        max_tokens=1024,
+                        max_tokens=max(settings.AI_MAX_TOKENS, 2048),
                         max_retries=1,
                         schema_hint=schema_hint,
                     )

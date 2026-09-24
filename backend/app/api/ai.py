@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from ..core.database import get_db
 from ..services.ai_service import ai_service
 from ..services.llm_service import llm_service
+from ..core.config import settings
 from ..core.deps import get_current_user
 from ..schemas.ai import AIChatRequest, AICommandRequest
 
@@ -109,7 +110,7 @@ def recommend_questions(
             ai_config=user_config,
             system_prompt=system_prompt,
             temperature=0.5,
-            max_tokens=1500,
+            max_tokens=max(settings.AI_MAX_TOKENS, 2048),
             max_retries=1,
             schema_hint=schema_hint,
         )

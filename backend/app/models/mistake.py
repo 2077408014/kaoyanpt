@@ -24,7 +24,7 @@ class Mistake(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    reviews = relationship("MistakeReview", back_populates="mistake")
+    reviews = relationship("MistakeReview", back_populates="mistake", cascade="all, delete-orphan")
 
 class MistakeReview(Base):
     __tablename__ = "mistake_reviews"
