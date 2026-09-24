@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Query, UploadFile, File, Form, HTTPExcep
 from sqlalchemy.orm import Session
 from typing import Optional
 from ..core.database import get_db
-from ..schemas.word import WordResponse, WordStudyRequest, StudyPlanRequest, StudySessionData
+from ..schemas.word import WordResponse, WordStudyRequest, StudyPlanRequest, StudySessionData, PushConfig
 from ..services.word_service import word_service
 from ..core.deps import get_current_user
 from ..models.user import User
@@ -217,6 +217,42 @@ async def save_study_plan(
     current_user: User = Depends(get_current_user)
 ):
     return word_service.save_study_plan(db, current_user.id, data)
+
+
+@router.get("/session-cards")
+async def get_session_cards(
+    count: int = Query(10, ge=1, le=100),
+    category: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return word_service.get_session_cards(db, current_user.id, count, category)
+
+
+@router.post("/session-complete")
+async def complete_session(
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return word_service.complete_session(db, current_user.id, data.get("session_id") or "")
+
+
+@router.get("/push-config")
+async def get_push_config(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return word_service.get_push_config(db, current_user.id)
+
+
+@router.post("/push-config")
+async def save_push_config(
+    data: PushConfig,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    return word_service.save_push_config(db, current_user.id, data.model_dump())
 
 
 @router.get("/session")

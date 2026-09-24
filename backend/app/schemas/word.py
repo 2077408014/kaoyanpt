@@ -44,6 +44,12 @@ class StudyPlanRequest(BaseModel):
     batch_size: int = Field(20, ge=5, le=50, description="每轮背诵批次大小")
     study_mode: str = Field("mixed", description="背诵模式：new_first(新词优先) / mixed(混合模式)")
 
+class PushConfig(BaseModel):
+    count: int = 10
+    interval_seconds: int = 60
+    category: Optional[str] = None
+    auto_play: bool = True
+
 class RoundWordItem(BaseModel):
     word_id: int
     type: str  # new / review

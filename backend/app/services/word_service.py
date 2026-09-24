@@ -359,6 +359,77 @@ class WordService:
             "study_mode": data.study_mode
         }
 
+    def get_session_cards(self, db: Session, user_id: int, count: int = 10, category: str = None) -> dict:
+        reviewed_q = db.query(UserWord).join(Word).filter(
+            UserWord.user_id == user_id,
+            UserWord.srs_status == "reviewed",
+            UserWord.next_review_date <= date.today(),
+        )
+        reviewed_q = self._apply_category_filter(reviewed_q, user_id, category)
+        reviewed = reviewed_q.order_by(UserWord.next_review_date.asc()).limit(count).all()
+
+        learning_q = db.query(UserWord).join(Word).filter(
+            UserWord.user_id == user_id,
+            UserWord.srs_status.in_(["step1", "step2", "relearn1", "relearn2"]),
+        )
+        learning_q = self._apply_category_filter(learning_q, user_id, category)
+        learning = learning_q.order_by(UserWord.last_study_date.asc()).limit(count).all()
+
+        studied = {uw.word_id for uw in db.query(UserWord).filter(UserWord.user_id == user_id).all()}
+        remain = count - len(reviewed) - len(learning)
+        new_words = []
+        if remain > 0:
+            nq = db.query(Word)
+            nq = self._apply_category_filter(nq, user_id, category)
+            if studied:
+                nq = nq.filter(~Word.id.in_(studied))
+            new_words = nq.order_by(Word.frequency.desc()).limit(remain).all()
+
+        cards = []
+        for w in new_words:
+            cards.append({
+                "word_id": w.id, "word": w.word, "phonetic": w.phonetic,
+                "meaning": w.meaning, "example_sentence": w.example_sentence,
+                "srs_status": "new", "type": "new",
+            })
+        for uw in reviewed:
+            w = uw.word
+            cards.append({
+                "word_id": w.id, "word": w.word, "phonetic": w.phonetic,
+                "meaning": w.meaning, "example_sentence": w.example_sentence,
+                "srs_status": uw.srs_status, "type": "review",
+            })
+        for uw in learning:
+            w = uw.word
+            cards.append({
+                "word_id": w.id, "word": w.word, "phonetic": w.phonetic,
+                "meaning": w.meaning, "example_sentence": w.example_sentence,
+                "srs_status": uw.srs_status, "type": "learning",
+            })
+
+        return {"session_id": uuid_mod.uuid4().hex, "total": len(cards), "cards": cards}
+
+    def complete_session(self, db: Session, user_id: int, session_id: str) -> dict:
+        return {"success": True, "session_id": session_id}
+
+    def get_push_config(self, db: Session, user_id: int) -> dict:
+        user = db.query(User).filter(User.id == user_id).first()
+        if user and user.push_settings_json:
+            try:
+                loaded = json.loads(user.push_settings_json)
+                return {**DEFAULT_PUSH_CONFIG, **loaded}
+            except json.JSONDecodeError:
+                pass
+        return dict(DEFAULT_PUSH_CONFIG)
+
+    def save_push_config(self, db: Session, user_id: int, cfg: dict) -> dict:
+        user = db.query(User).filter(User.id == user_id).first()
+        merged = {**DEFAULT_PUSH_CONFIG, **cfg}
+        if user:
+            user.push_settings_json = json.dumps(merged, ensure_ascii=False)
+            db.commit()
+        return merged
+
     def get_study_session(self, db: Session, user_id: int):
         user = db.query(User).filter(User.id == user_id).first()
         if user and user.study_session_json:
