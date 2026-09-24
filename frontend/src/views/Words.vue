@@ -13,6 +13,9 @@
       <el-tab-pane label="AI语音朗读" name="voice">
         <VoiceModule />
       </el-tab-pane>
+      <el-tab-pane label="弹卡背诵" name="push">
+        <PushCards />
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
@@ -23,6 +26,7 @@ import WordModule from './recitation/WordModule.vue'
 import PoliticsModule from './recitation/PoliticsModule.vue'
 import ReminderModule from './recitation/ReminderModule.vue'
 import VoiceModule from './recitation/VoiceModule.vue'
+import PushCards from './recitation/PushCards.vue'
 
 const activeTab = ref('words')
 </script>
