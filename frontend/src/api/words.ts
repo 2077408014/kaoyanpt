@@ -28,6 +28,7 @@ export interface UserWord {
   first_study_date: string | null
   last_rating: string | null
   srs_stage: number
+  srs_status?: string
 }
 
 export interface WordStats {
@@ -113,8 +114,18 @@ export async function getWordList(params?: {
   return await axios.get('/words/list', { params })
 }
 
-export async function studyWord(wordId: number, result: string): Promise<UserWord> {
-  return await axios.post('/words/study', { word_id: wordId, result })
+export async function studyWord(
+  wordId: number,
+  result: string,
+  opts?: { session_id?: string; source?: string; quiz_result?: boolean }
+): Promise<any> {
+  return await axios.post('/words/study', {
+    word_id: wordId,
+    result,
+    session_id: opts?.session_id,
+    source: opts?.source ?? 'card',
+    quiz_result: opts?.quiz_result
+  })
 }
 
 export async function getStudyPlan(): Promise<StudyPlan> {
@@ -162,4 +173,103 @@ export async function uploadWordbook(file: File, category?: string): Promise<Upl
     formData.append('category', category)
   }
   return await axios.post('/words/upload-wordbook', formData)
+}
+
+export type SrsRating = '忘记' | '困难' | '一般' | '认识'
+
+export interface SessionCardItem {
+  word_id: number
+  word: string
+  phonetic: string | null
+  meaning: string
+  example_sentence: string | null
+  srs_status: string
+  type: string
+}
+
+export interface PushConfig {
+  count: number
+  interval_seconds: number
+  category: string | null
+  auto_play: boolean
+}
+
+export interface QuizOption {
+  index: number
+  text: string
+}
+
+export interface QuizItem {
+  type: '中译英' | '英译中'
+  word_id: number
+  prompt: string
+  options: QuizOption[]
+  correct: number
+}
+
+export interface QuizAnswerResult {
+  last_rating: string
+  srs_status: string
+  mastery_level: string
+  next_review_date: string | null
+}
+
+export interface RecordSummaryItem {
+  session_id: string
+  source: string
+  created_at: string | null
+  total: number
+  forgot: number
+  hard: number
+  good: number
+  known: number
+}
+
+export async function getSessionCards(count: number = 10, category?: string): Promise<{ session_id: string; total: number; cards: SessionCardItem[] }> {
+  return await axios.get('/words/session-cards', { params: { count, category } })
+}
+
+export async function completeSession(sessionId: string): Promise<{ success: boolean }> {
+  return await axios.post('/words/session-complete', { session_id: sessionId })
+}
+
+export async function getQuiz(wordIds: number[], count: number = 8): Promise<QuizItem[]> {
+  return await axios.get('/words/quiz', { params: { word_ids: wordIds.join(','), count } })
+}
+
+export async function answerQuiz(payload: {
+  word_id: number
+  selected: number
+  correct: boolean
+  session_id?: string
+}): Promise<QuizAnswerResult> {
+  return await axios.post('/words/quiz/answer', payload)
+}
+
+export async function getStudyRecords(page: number = 1, pageSize: number = 10): Promise<{ total: number; items: RecordSummaryItem[] }> {
+  return await axios.get('/words/records', { params: { page, page_size: pageSize } })
+}
+
+export async function exportStudyRecords(): Promise<void> {
+  const blob: Blob = await axios.get('/words/records/export', { responseType: 'blob' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = '背诵记录.xlsx'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export async function importStudyRecords(file: File): Promise<{ success: boolean; message: string; imported: number }> {
+  const formData = new FormData()
+  formData.append('file', file)
+  return await axios.post('/words/records/import', formData)
+}
+
+export async function getPushConfig(): Promise<PushConfig> {
+  return await axios.get('/words/push-config')
+}
+
+export async function savePushConfig(cfg: Partial<PushConfig>): Promise<PushConfig> {
+  return await axios.post('/words/push-config', cfg)
 }
