@@ -25,6 +25,26 @@ def seed_default_user(db: Session) -> None:
     db.commit()
 
 
+def seed_super_admin(db: Session) -> None:
+    """预置超级管理员（集中创建机构/班级/教师账号）。
+
+    默认凭据 superadmin@kaoyan.com / 123456，请尽快修改密码。
+    """
+    exists = db.execute(
+        text("SELECT COUNT(*) FROM users WHERE role = 'super_admin'")
+    ).scalar()
+    if exists:
+        return
+    db.execute(
+        text(
+            "INSERT INTO users (username, email, password, daily_word_count, batch_size, study_mode, role) "
+            "VALUES ('superadmin', 'superadmin@kaoyan.com', :password, 20, 20, 'mixed', 'super_admin')"
+        ),
+        {"password": _admin_password_hash()},
+    )
+    db.commit()
+
+
 SAMPLE_WORDS = [
     ("abandon", "/əˈbændən/", "v. 放弃，抛弃", "He decided to abandon the project.", 1, 95, "高频词"),
     ("ability", "/əˈbɪləti/", "n. 能力，才能", "She has the ability to learn quickly.", 1, 88, "考纲词"),
@@ -85,4 +105,5 @@ def seed_words(db: Session) -> None:
 def run_seed() -> None:
     with SessionLocal() as db:
         seed_default_user(db)
+        seed_super_admin(db)
         seed_words(db)

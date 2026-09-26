@@ -12,11 +12,16 @@ export interface RegisterData {
   code: string
 }
 
+export type UserRole = 'student' | 'teacher' | 'institution_admin' | 'super_admin'
+
 export interface User {
   id: number
   username: string
   email: string
   avatar: string | null
+  role: UserRole
+  institution_id: number | null
+  must_change_password?: boolean
   ai_api_provider: string | null
   ai_api_key: string | null
   ai_api_model: string | null
@@ -74,4 +79,11 @@ export async function sendRegisterCode(data: ForgotPasswordData): Promise<{ mess
 
 export async function resetPassword(data: ResetPasswordData): Promise<{ message: string }> {
   return await axios.post('/auth/reset-password', data)
+}
+
+export async function changePassword(data: {
+  old_password: string
+  new_password: string
+}): Promise<{ message: string }> {
+  return await axios.post('/auth/change-password', data)
 }

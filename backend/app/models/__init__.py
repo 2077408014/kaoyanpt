@@ -12,3 +12,7 @@ from .email_verification import EmailVerificationCode
 from .password_reset import PasswordResetCode
 from .knowledge_base import KnowledgeDocument
 from .agent_collaboration import AgentCollaborationLog, AgentInteractionLog
+from .organization import (
+    Institution, Class, ClassTeacher, ClassStudent,
+    ClassAnnouncement, Assignment, AssignmentSubmission,
+)

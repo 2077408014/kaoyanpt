@@ -8,7 +8,7 @@ from ..core.security import decode_access_token, create_access_token
 from ..core.config import settings
 from ..schemas.auth import (
     UserCreate, UserLogin, UserResponse, TokenResponse, AIConfigUpdate,
-    RefreshTokenRequest
+    RefreshTokenRequest, ChangePasswordRequest
 )
 from ..services.auth_service import auth_service
 
@@ -33,6 +33,19 @@ async def login(login_data: UserLogin, db: Session = Depends(get_db)):
 @router.get("/me", response_model=UserResponse)
 async def get_me(current_user = Depends(get_current_user)):
     return current_user
+
+
+@router.post("/change-password")
+async def change_password(
+    data: ChangePasswordRequest,
+    current_user = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        auth_service.change_password(db, current_user, data.old_password, data.new_password)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return {"message": "密码修改成功"}
 
 
 @router.post("/refresh", response_model=TokenResponse)

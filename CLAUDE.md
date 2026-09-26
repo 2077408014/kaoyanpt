@@ -1,99 +1,42 @@
-# Superpowers — Project Integration
+# KaoYanPT
 
-## IMPORTANT: Read skills/using-superpowers/SKILL.md FIRST
+考研陪伴平台（FastAPI + Vue 3 / Element Plus + SQLite）。
 
-Before doing ANYTHING in this project, you MUST read and follow the `using-superpowers` skill. It establishes the mandatory rule: **invoke relevant skills BEFORE any response or action**.
-
-## Core Rule
-
-**You MUST check for applicable skills before responding.** If even a 1% chance exists that a skill applies, you MUST invoke it. This is non-negotiable.
-
-## How to Use Superpowers in This Project
-
-### When Starting a Conversation
-1. Read `skills/using-superpowers/SKILL.md`
-2. Follow its rules — invoke skills before any action
-
-### When Building Something
-- "Let's build X" → Invoke `superpowers:brainstorming` first
-- After design approved → Invoke `superpowers:writing-plans`
-- When executing plan → Use `superpowers:subagent-driven-development` or `superpowers:executing-plans`
-- During implementation → `superpowers:test-driven-development` is MANDATORY
-- After tasks → `superpowers:requesting-code-review` between tasks
-- When complete → `superpowers:finishing-a-development-branch`
-
-### When Fixing Bugs
-- "Fix this bug" → Invoke `superpowers:systematic-debugging` first
-- Before claiming fixed → `superpowers:verification-before-completion`
-
-### When Receiving Feedback
-- "Review comments:" → Invoke `superpowers:receiving-code-review`
-
-## Available Skills
-
-| Skill | Description |
-|-------|-------------|
-| `using-superpowers` | Mandatory startup skill — establishes skill invocation rules |
-| `brainstorming` | Must use before any creative work — explores requirements and design |
-| `writing-plans` | Creates detailed implementation plans from specs |
-| `test-driven-development` | Enforces RED-GREEN-REFACTOR — NO CODE WITHOUT FAILING TEST FIRST |
-| `using-git-worktrees` | Sets up isolated workspace for feature development |
-| `subagent-driven-development` | Executes plans via fresh subagent per task |
-| `executing-plans` | Executes plans with review checkpoints |
-| `requesting-code-review` | Dispatches code reviewer subagent |
-| `finishing-a-development-branch` | Guides completion: merge/PR/keep/discard |
-| `systematic-debugging` | 4-phase root cause investigation — NO FIXES WITHOUT INVESTIGATION |
-| `verification-before-completion` | Evidence before claims — run verification commands first |
-| `receiving-code-review` | Technical evaluation of feedback — no performative agreement |
-| `dispatching-parallel-agents` | Parallel investigation of independent issues |
-| `writing-skills` | TDD for creating/editing skills |
-
-## Workflow Summary
+## 目录结构
 
 ```
-User request → Check skills → Invoke appropriate skill
-                                      ↓
-                    brainstorming → writing-plans → implementation
-                                            ↓
-                               subagent-driven-development / executing-plans
-                                            ↓
-                                    test-driven-development (mandatory)
-                                            ↓
-                              requesting-code-review → finishing-a-development-branch
+KaoYanPT/
+├── backend/
+│   ├── app/
+│   │   ├── api/          # 路由层（auth/teacher/institution/admin/classes）
+│   │   ├── core/         # 数据库、依赖鉴权、表驱动迁移
+│   │   ├── models/       # SQLAlchemy 模型
+│   │   ├── schemas/      # Pydantic 模型
+│   │   └── services/     # 业务逻辑
+│   ├── alembic/          # Alembic 迁移
+│   └── tests/            # 接口测试
+├── frontend/
+│   └── src/
+│       ├── api/          # axios 封装
+│       ├── components/   # 共用组件
+│       ├── router/       # 路由（按角色守卫）
+│       ├── stores/       # Pinia
+│       └── views/        # admin / institution / teacher / student 四端页面
+└── docs/                 # 设计与计划文档
 ```
 
-## Non-Negotiable Rules
+## 开发与验证
 
-1. **NO CODE BEFORE DESIGN:** Always brainstorm and get approval first
-2. **NO CODE BEFORE TEST:** TDD is mandatory — write failing test first
-3. **NO COMPLETION BEFORE VERIFICATION:** Always run tests and verify before claiming success
-4. **NO FIXES BEFORE INVESTIGATION:** Use systematic-debugging for all bugs
+- Python 环境：conda `kaoyanpt`（`/mnt/data_d/conda_envs/kaoyanpt/bin/python`）
+- 后端测试：`cd backend && /mnt/data_d/conda_envs/kaoyanpt/bin/python tests/test_organization_api.py`
+- 前端构建：`cd frontend && npm run build`
+- 改动完成后先跑测试与构建，再向用户声明完成
 
-## File Structure
+## 角色模型
 
-```
-KaoYanXT/
-├── skills/                # Superpowers skills library
-│   ├── using-superpowers/
-│   ├── brainstorming/
-│   ├── writing-plans/
-│   ├── test-driven-development/
-│   ├── using-git-worktrees/
-│   ├── subagent-driven-development/
-│   ├── executing-plans/
-│   ├── requesting-code-review/
-│   ├── finishing-a-development-branch/
-│   ├── systematic-debugging/
-│   ├── verification-before-completion/
-│   ├── receiving-code-review/
-│   ├── dispatching-parallel-agents/
-│   └── writing-skills/
-├── docs/superpowers/      # Generated documentation
-│   ├── specs/             # Design documents
-│   └── plans/             # Implementation plans
-└── .gitignore
-```
+- 超级管理员（super_admin）：机构管理 + 员工账号管理；无班级管理写权限
+- 机构管理者（institution_admin）：本机构班级、入班码、教师账号管理
+- 教师（teacher）：所任班级的成员、公告、作业管理与学生数据查看
+- 学生（student）：学习功能 + 加入班级、查看公告作业并提交
 
-## Final Note
-
-This is a **project-level integration** of Superpowers. The skills are designed to be read and followed by AI agents during development. When you (as the AI agent) start working on this project, you MUST follow the `using-superpowers` skill's rules — invoke skills before taking any action.
+员工账号可同时具备学生身份（双重角色），登录后切换身份。

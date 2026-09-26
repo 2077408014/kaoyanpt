@@ -33,6 +33,14 @@
           <el-icon><VideoCamera /></el-icon>
           <span>学习监督</span>
         </el-menu-item>
+        <el-menu-item index="/dashboard/my-classes">
+          <el-icon><OfficeBuilding /></el-icon>
+          <span>我的班级</span>
+        </el-menu-item>
+        <el-menu-item v-if="staffHome" :index="staffHome" class="switch-entry">
+          <el-icon><SwitchButton /></el-icon>
+          <span>返回我的工作台</span>
+        </el-menu-item>
       </el-menu>
       <div class="logout">
         <el-button @click="handleLogout">退出登录</el-button>
@@ -60,9 +68,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useUserStore } from '../stores/user'
+import { useUserStore, roleHomePath } from '../stores/user'
 import { getMe } from '../api/auth'
 import { useStudyHeartbeat } from '../composables/useStudyHeartbeat'
 import { ElMessage } from 'element-plus'
@@ -74,7 +82,9 @@ import {
   Reading,
   Service,
   Bell,
-  VideoCamera
+  VideoCamera,
+  OfficeBuilding,
+  SwitchButton
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -82,6 +92,11 @@ const route = useRoute()
 const store = useUserStore()
 const user = ref<any>(null)
 const activeMenu = ref(route.path || '/dashboard')
+
+// 员工（教师/机构管理者/超管）以学生身份进入时，提供返回工作台入口
+const staffHome = computed(() =>
+  store.role && store.role !== 'student' ? roleHomePath(store.role) : ''
+)
 
 // 启动学习时长心跳跟踪（独立模块）
 useStudyHeartbeat()

@@ -62,6 +62,15 @@ class AuthService:
     def get_user_by_email(self, db: Session, email: str) -> Optional[User]:
         return db.query(User).filter(User.email == email).first()
 
+    def change_password(self, db: Session, user: User, old_password: str, new_password: str) -> None:
+        if not verify_password(old_password, user.password):
+            raise ValueError("原密码不正确")
+        if verify_password(new_password, user.password):
+            raise ValueError("新密码不能与旧密码相同")
+        user.password = get_password_hash(new_password)
+        user.must_change_password = False
+        db.commit()
+
     def get_user_by_id(self, db: Session, user_id: int) -> Optional[User]:
         return db.query(User).filter(User.id == user_id).first()
 

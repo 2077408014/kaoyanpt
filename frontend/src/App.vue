@@ -1,8 +1,10 @@
 <template>
   <router-view />
+  <ForceChangePassword />
 </template>
 
 <script setup lang="ts">
+import ForceChangePassword from './components/ForceChangePassword.vue'
 </script>
 
 <style>

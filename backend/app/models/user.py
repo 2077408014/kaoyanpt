@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Text, ForeignKey, Boolean
 from sqlalchemy.sql import func
 from ..core.database import Base
 
@@ -21,5 +21,10 @@ class User(Base):
     ai_api_model = Column(String(100), nullable=True)
     ai_api_provider = Column(String(50), nullable=True)
     active_ai_config_id = Column(Integer, ForeignKey("ai_configs.id"), nullable=True)
+    role = Column(String(20), nullable=False, default="student", server_default="student")
+    institution_id = Column(Integer, ForeignKey("institutions.id"), nullable=True)
+    must_change_password = Column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )  # 管理员创建的账号首次登录须改密
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

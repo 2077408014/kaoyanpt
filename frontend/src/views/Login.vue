@@ -30,8 +30,8 @@
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
-import { useUserStore } from '../stores/user'
-import { login } from '../api/auth'
+import { useUserStore, roleHomePath } from '../stores/user'
+import { login, getMe } from '../api/auth'
 
 const router = useRouter()
 const store = useUserStore()
@@ -57,7 +57,9 @@ async function handleLogin() {
       const response = await login(form)
       store.setToken(response.access_token)
       localStorage.setItem('refresh_token', response.refresh_token)
-      await router.push('/dashboard')
+      const me = await getMe()
+      store.setUser(me)
+      await router.push(roleHomePath(me.role))
       ElMessage.success('登录成功')
     } catch (error: any) {
       if (error.response?.status === 401) {

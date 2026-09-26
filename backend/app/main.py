@@ -4,11 +4,14 @@ from fastapi.staticfiles import StaticFiles
 from .core.database import engine, Base
 from .core.config import UPLOAD_PATH
 from .core.seed import run_seed
+from .core.migrations_org import run_org_migration
 from .api import auth, mistakes, words, politics, recommendation, resources, ai, report, assistants, rag, supervision, study, ai_config, agent
+from .api import admin, teacher, institution, classes
 from .services.collaboration_engine import init_collaboration_engine
 from .services.ai_service import ai_service
 
 Base.metadata.create_all(bind=engine)
+run_org_migration()
 run_seed()
 
 init_collaboration_engine(ai_service)
@@ -39,6 +42,10 @@ app.include_router(supervision.router)
 app.include_router(study.router)
 app.include_router(ai_config.router)
 app.include_router(agent.router)
+app.include_router(admin.router)
+app.include_router(teacher.router)
+app.include_router(institution.router)
+app.include_router(classes.router)
 
 
 @app.get("/")

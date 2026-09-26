@@ -1,37 +1,20 @@
-# Superpowers for AI Agents
+# KaoYanPT 项目说明
 
-## Core Instruction
+考研陪伴平台：FastAPI 后端 + Vue 3 / Element Plus 前端。
 
-You MUST read and follow `skills/using-superpowers/SKILL.md` before taking any action.
+## 环境
 
-## Rule Zero
+- Python 依赖安装在 conda 的 `kaoyanpt` 环境（解释器 `/mnt/data_d/conda_envs/kaoyanpt/bin/python`）
+- 真实数据库为项目根目录的 `kaoyan_xt.db`（SQLite，已被 git 忽略，勿提交）
+- 后端开发：`uvicorn app.main:app --port 8000 --reload`（在 `backend/` 下）
+- 前端开发：`npm run dev`（在 `frontend/` 下，Vite 5173 代理 `/api` 到 8000）
 
-**Invoke relevant skills BEFORE any response or action.** This includes clarifying questions, code exploration, or any other task.
+## 验证
 
-## Available Skills
+- 后端测试：`cd backend && /mnt/data_d/conda_envs/kaoyanpt/bin/python tests/test_organization_api.py`
+- 前端构建（含 vue-tsc 类型检查）：`cd frontend && npm run build`
 
-- `superpowers:using-superpowers` — Startup skill, mandatory
-- `superpowers:brainstorming` — Design before coding
-- `superpowers:writing-plans` — Implementation planning
-- `superpowers:test-driven-development` — TDD mandatory
-- `superpowers:using-git-worktrees` — Isolated workspaces
-- `superpowers:subagent-driven-development` — Subagent execution
-- `superpowers:executing-plans` — Plan execution
-- `superpowers:requesting-code-review` — Code review
-- `superpowers:finishing-a-development-branch` — Completion workflow
-- `superpowers:systematic-debugging` — Root cause debugging
-- `superpowers:verification-before-completion` — Evidence-based claims
-- `superpowers:receiving-code-review` — Technical feedback handling
-- `superpowers:dispatching-parallel-agents` — Parallel investigation
-- `superpowers:writing-skills` — Skill creation
+## 约定
 
-## Quick Reference
-
-| Task | Skill to Use |
-|------|--------------|
-| "Let's build X" | brainstorming → writing-plans → TDD |
-| "Fix this bug" | systematic-debugging → TDD |
-| "Implement feature" | test-driven-development |
-| "Code review" | requesting-code-review |
-| "Done with task" | finishing-a-development-branch |
-| "Claim success" | verification-before-completion |
+- 代码改动后须跑后端测试与前端构建再交付
+- 不要执行 git commit / push，除非用户明确要求

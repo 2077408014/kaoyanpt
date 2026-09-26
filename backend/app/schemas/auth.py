@@ -17,6 +17,9 @@ class UserResponse(BaseModel):
     username: str
     email: str
     avatar: Optional[str]
+    role: str = "student"
+    institution_id: Optional[int] = None
+    must_change_password: bool = False
     ai_api_provider: Optional[str]
     ai_api_model: Optional[str]
     ai_api_base_url: Optional[str]
@@ -39,3 +42,7 @@ class TokenResponse(BaseModel):
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
+
+class ChangePasswordRequest(BaseModel):
+    old_password: str = Field(..., min_length=1)
+    new_password: str = Field(..., min_length=6)
