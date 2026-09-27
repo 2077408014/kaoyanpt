@@ -9,14 +9,12 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { useRoute, useRouter } from 'vue-router'
-import OrgStudentPanel from '../../components/OrgStudentPanel.vue'
-import { institutionApi } from '../../api/organization'
-
-const route = useRoute()
-const router = useRouter()
-const studentId = Number(route.params.studentId)
+<script setup>
+import OrgStudentPanel from '../../components/OrgStudentPanel.vue';
+import { institutionApi } from '../../api/organization';import { useRoute, useRouter } from "vue-router";
+const route = useRoute();
+const router = useRouter();
+const studentId = Number(route.params.studentId);
 </script>
 
 <style scoped>

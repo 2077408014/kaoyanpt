@@ -111,78 +111,66 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { VideoPlay, Refresh, CircleClose } from '@element-plus/icons-vue'
-import { useSpeech } from '@/composables/useSpeech'
-
-const { speak, stop, pause, resume, setRate, setVolume, setPitch, isSpeaking } = useSpeech()
-
-const speakText = ref('')
-const rate = ref(1)
-const volume = ref(1)
-const pitch = ref(1)
-const isPaused = ref(false)
-
-function loadPreset(type: string) {
-  if (type === 'word') {
-    speakText.value = 'abandon\nv. 放弃，抛弃\n例句：He decided to abandon the project.\n\nability\nn. 能力，才能\n例句：She has the ability to learn quickly.'
-  } else if (type === 'politics') {
-    speakText.value = '唯物辩证法的三大规律：对立统一规律、质量互变规律、否定之否定规律。对立统一规律是唯物辩证法的实质和核心，它揭示了事物内部对立双方的统一与斗争是事物普遍联系的根本内容，是事物发展的根本动力。'
+<script setup>
+import { VideoPlay, Refresh, CircleClose } from '@element-plus/icons-vue';import { ref, onMounted } from "vue";
+import { ElMessage } from "element-plus";
+import { useSpeech } from "@/composables/useSpeech";
+const { speak, stop, pause, resume, setRate, setVolume, setPitch, isSpeaking } = useSpeech();
+const speakText = ref("");
+const rate = ref(1);
+const volume = ref(1);
+const pitch = ref(1);
+const isPaused = ref(false);
+function loadPreset(type) {
+  if (type === "word") {
+    speakText.value = "abandon\nv. 放弃，抛弃\n例句：He decided to abandon the project.\n\nability\nn. 能力，才能\n例句：She has the ability to learn quickly.";
+  } else if (type === "politics") {
+    speakText.value = "唯物辩证法的三大规律：对立统一规律、质量互变规律、否定之否定规律。对立统一规律是唯物辩证法的实质和核心，它揭示了事物内部对立双方的统一与斗争是事物普遍联系的根本内容，是事物发展的根本动力。";
   }
 }
-
 function clearText() {
-  speakText.value = ''
-  stop()
+  speakText.value = "";
+  stop();
 }
-
 function handleSpeak() {
   if (!speakText.value.trim()) {
-    ElMessage.warning('请输入要朗读的文本')
-    return
+    ElMessage.warning("请输入要朗读的文本");
+    return;
   }
-  isPaused.value = false
+  isPaused.value = false;
   speak(speakText.value, {
     rate: rate.value,
     volume: volume.value,
     pitch: pitch.value
-  })
+  });
 }
-
 function handlePause() {
   if (isPaused.value) {
-    resume()
-    isPaused.value = false
+    resume();
+    isPaused.value = false;
   } else {
-    pause()
-    isPaused.value = true
+    pause();
+    isPaused.value = true;
   }
 }
-
 function handleStop() {
-  stop()
-  isPaused.value = false
+  stop();
+  isPaused.value = false;
 }
-
-function handleRateChange(val: number) {
-  setRate(val)
+function handleRateChange(val) {
+  setRate(val);
 }
-
-function handleVolumeChange(val: number) {
-  setVolume(val)
+function handleVolumeChange(val) {
+  setVolume(val);
 }
-
-function handlePitchChange(val: number) {
-  setPitch(val)
+function handlePitchChange(val) {
+  setPitch(val);
 }
-
 onMounted(() => {
-  if (!('speechSynthesis' in window)) {
-    ElMessage.warning('当前浏览器不支持语音合成功能')
+  if (!("speechSynthesis" in window)) {
+    ElMessage.warning("当前浏览器不支持语音合成功能");
   }
-})
+});
 </script>
 
 <style scoped>

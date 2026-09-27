@@ -23,25 +23,22 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { User, Avatar } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { teacherApi, type ClassListItem } from '../../api/organization'
-
-const loading = ref(false)
-const classes = ref<ClassListItem[]>([])
-
+<script setup>
+import { User, Avatar } from '@element-plus/icons-vue';import { ref, onMounted } from "vue";
+import { ElMessage } from "element-plus";
+import { teacherApi } from "../../api/organization";
+const loading = ref(false);
+const classes = ref([]);
 onMounted(async () => {
-  loading.value = true
+  loading.value = true;
   try {
-    classes.value = await teacherApi.myClasses()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '加载失败')
+    classes.value = await teacherApi.myClasses();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "加载失败");
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-})
+});
 </script>
 
 <style scoped>

@@ -40,9 +40,11 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     SMTP_FROM_EMAIL: str = ""
 
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
+    # pydantic-settings v2：用绝对路径，保证从任意工作目录启动都能读到 backend/.env
+    model_config = SettingsConfigDict(
+        env_file=BACKEND_DIR / ".env",
+        extra="ignore",
+    )
 
 
 settings = Settings()

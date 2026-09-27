@@ -62,46 +62,41 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { studentClassApi, type MyClass } from '../../api/organization'
-
-const code = ref('')
-const joining = ref(false)
-const loading = ref(false)
-const classes = ref<MyClass[]>([])
-
+<script setup>import { ref, onMounted } from "vue";
+import { ElMessage } from "element-plus";
+import { studentClassApi } from "../../api/organization";
+const code = ref("");
+const joining = ref(false);
+const loading = ref(false);
+const classes = ref([]);
 async function loadClasses() {
-  loading.value = true
+  loading.value = true;
   try {
-    classes.value = await studentClassApi.my()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '加载班级失败')
+    classes.value = await studentClassApi.my();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "加载班级失败");
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
-
 async function handleJoin() {
   if (!code.value.trim()) {
-    ElMessage.warning('请输入入班码')
-    return
+    ElMessage.warning("请输入入班码");
+    return;
   }
-  joining.value = true
+  joining.value = true;
   try {
-    const cls = await studentClassApi.join(code.value)
-    ElMessage.success(`已加入「${cls.name}」`)
-    code.value = ''
-    await loadClasses()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '加入失败')
+    const cls = await studentClassApi.join(code.value);
+    ElMessage.success(`已加入「${cls.name}」`);
+    code.value = "";
+    await loadClasses();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "加入失败");
   } finally {
-    joining.value = false
+    joining.value = false;
   }
 }
-
-onMounted(loadClasses)
+onMounted(loadClasses);
 </script>
 
 <style scoped>

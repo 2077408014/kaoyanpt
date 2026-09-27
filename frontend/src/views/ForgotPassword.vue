@@ -51,128 +51,113 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { useRouter } from 'vue-router'
-import { forgotPassword, resetPassword } from '../api/auth'
-
-const router = useRouter()
-const formRef = ref()
-const sending = ref(false)
-const resetting = ref(false)
-const step = ref(1)
-const countdown = ref(0)
-let countdownTimer: ReturnType<typeof setInterval> | null = null
-
+<script setup>import { ref, reactive, onMounted } from "vue";
+import { ElMessage } from "element-plus";
+import { useRouter } from "vue-router";
+import { forgotPassword, resetPassword } from "../api/auth";
+const router = useRouter();
+const formRef = ref();
+const sending = ref(false);
+const resetting = ref(false);
+const step = ref(1);
+const countdown = ref(0);
+let countdownTimer = null;
 onMounted(() => {
-  countdown.value = 0
-  step.value = 1
-})
-
+  countdown.value = 0;
+  step.value = 1;
+});
 const form = reactive({
-  email: '',
-  code: '',
-  new_password: '',
-  confirm_password: ''
-})
-
+  email: "",
+  code: "",
+  new_password: "",
+  confirm_password: ""
+});
 const rules = {
   email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+    { required: true, message: "请输入邮箱", trigger: "blur" },
+    { type: "email", message: "请输入正确的邮箱格式", trigger: "blur" }
   ]
-}
-
+};
 const resetRules = {
   email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+    { required: true, message: "请输入邮箱", trigger: "blur" },
+    { type: "email", message: "请输入正确的邮箱格式", trigger: "blur" }
   ],
   code: [
-    { required: true, message: '请输入验证码', trigger: 'blur' },
-    { min: 6, max: 6, message: '验证码必须为6位数字', trigger: 'blur' }
+    { required: true, message: "请输入验证码", trigger: "blur" },
+    { min: 6, max: 6, message: "验证码必须为6位数字", trigger: "blur" }
   ],
   new_password: [
-    { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, message: '密码长度至少6位', trigger: 'blur' }
+    { required: true, message: "请输入新密码", trigger: "blur" },
+    { min: 6, message: "密码长度至少6位", trigger: "blur" }
   ],
   confirm_password: [
-    { required: true, message: '请确认新密码', trigger: 'blur' },
+    { required: true, message: "请确认新密码", trigger: "blur" },
     {
-      validator: (_rule: any, value: string, callback: any) => {
+      validator: (_rule, value, callback) => {
         if (value !== form.new_password) {
-          callback(new Error('两次输入的密码不一致'))
+          callback(new Error("两次输入的密码不一致"));
         } else {
-          callback()
+          callback();
         }
       },
-      trigger: 'blur'
+      trigger: "blur"
     }
   ]
-}
-
+};
 async function handleSendCode() {
   if (!form.email) {
-    ElMessage.error('请输入邮箱')
-    return
+    ElMessage.error("请输入邮箱");
+    return;
   }
-  
-  sending.value = true
+  sending.value = true;
   try {
-    await forgotPassword({ email: form.email })
-    ElMessage.success('验证码已发送到您的邮箱，请查收')
-    
+    await forgotPassword({ email: form.email });
+    ElMessage.success("验证码已发送到您的邮箱，请查收");
     if (step.value === 1) {
-      step.value = 2
+      step.value = 2;
     }
-    
     if (countdownTimer) {
-      clearInterval(countdownTimer)
+      clearInterval(countdownTimer);
     }
-    startCountdown()
-  } catch (error: any) {
-    countdown.value = 0
-    ElMessage.error(error.response?.data?.detail || '发送验证码失败')
+    startCountdown();
+  } catch (error) {
+    countdown.value = 0;
+    ElMessage.error(error.response?.data?.detail || "发送验证码失败");
   } finally {
-    sending.value = false
+    sending.value = false;
   }
 }
-
 function startCountdown() {
-  countdown.value = 60
+  countdown.value = 60;
   countdownTimer = setInterval(() => {
-    countdown.value--
+    countdown.value--;
     if (countdown.value <= 0) {
-      clearInterval(countdownTimer!)
-      countdownTimer = null
-      countdown.value = 0
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+      countdown.value = 0;
     }
-  }, 1000)
+  }, 1e3);
 }
-
 async function handleResetPassword() {
-  if (!formRef.value) return
-  
-  await formRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
-    
-    resetting.value = true
+  if (!formRef.value) return;
+  await formRef.value.validate(async (valid) => {
+    if (!valid) return;
+    resetting.value = true;
     try {
       await resetPassword({
         email: form.email,
         code: form.code,
         new_password: form.new_password
-      })
-      
-      ElMessage.success('密码重置成功，请使用新密码登录')
-      await router.push('/login')
-    } catch (error: any) {
-      ElMessage.error(error.response?.data?.detail || '密码重置失败')
+      });
+      ElMessage.success("密码重置成功，请使用新密码登录");
+      await router.push("/login");
+    } catch (error) {
+      ElMessage.error(error.response?.data?.detail || "密码重置失败");
     } finally {
-      resetting.value = false
+      resetting.value = false;
     }
-  })
+  });
 }
 </script>
 

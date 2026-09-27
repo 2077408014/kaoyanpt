@@ -303,303 +303,282 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Picture } from '@element-plus/icons-vue'
-import katex from 'katex'
-import 'katex/dist/katex.min.css'
+<script setup>
+import { Plus, Picture } from '@element-plus/icons-vue';import { ref, reactive, onMounted } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
+import katex from "katex";
+import "katex/dist/katex.min.css";
 import {
-  getMistakes, createMistake, updateMistake as updateMistakeApi,
+  getMistakes,
+  createMistake,
+  updateMistake as updateMistakeApi,
   deleteMistake as deleteMistakeApi,
-  reviewMistake as reviewMistakeApi, uploadMistakeImage, recognizeMistake
-} from '../api/mistakes'
-import { recommendQuestions, type RecommendQuestion } from '../api/ai'
-
-function renderMathFormula(formula: string, displayMode: boolean): string {
+  reviewMistake as reviewMistakeApi,
+  uploadMistakeImage,
+  recognizeMistake
+} from "../api/mistakes";
+import { recommendQuestions } from "../api/ai";
+function renderMathFormula(formula, displayMode) {
   try {
     return katex.renderToString(formula.trim(), {
       displayMode,
       throwOnError: false,
       strict: false,
       trust: true
-    })
+    });
   } catch {
-    return `<span class="math-error">${displayMode ? '$$' : '$'}${formula.trim()}${displayMode ? '$$' : '$'}</span>`
+    return `<span class="math-error">${displayMode ? "$" : "$"}${formula.trim()}${displayMode ? "$" : "$"}</span>`;
   }
 }
-
-function renderMathContent(text: string): string {
-  if (!text) return ''
-  
-  let result = text
-  
+function renderMathContent(text) {
+  if (!text) return "";
+  let result = text;
   result = result.replace(/\$\$(.*?)\$\$/gms, (_, formula) => {
-    const trimmedFormula = formula.trim()
-    if (!trimmedFormula) return '$$'
-    return renderMathFormula(trimmedFormula, true)
-  })
-  
+    const trimmedFormula = formula.trim();
+    if (!trimmedFormula) return "$";
+    return renderMathFormula(trimmedFormula, true);
+  });
   result = result.replace(/(?<!\\)\$(.*?)(?<!\\)\$/g, (_, formula) => {
-    const trimmedFormula = formula.trim()
-    if (!trimmedFormula) return '$'
+    const trimmedFormula = formula.trim();
+    if (!trimmedFormula) return "$";
     if (trimmedFormula.length > 100) {
-      return renderMathFormula(trimmedFormula, true)
+      return renderMathFormula(trimmedFormula, true);
     }
-    return renderMathFormula(trimmedFormula, false)
-  })
-  
-  return result
+    return renderMathFormula(trimmedFormula, false);
+  });
+  return result;
 }
-
-const mistakes = ref<any[]>([])
-const showAddDialog = ref(false)
-const showDetailDialog = ref(false)
-const showReviewDialog = ref(false)
-const selectedMistake = ref<any>(null)
-const reviewingMistake = ref<any>(null)
-const reviewResult = ref('')
-const reviewNotes = ref('')
-const showAnswer = ref(false)
-const addFormRef = ref()
-const recognizing = ref(false)
-const similarQuestions = ref<RecommendQuestion[]>([])
-const loadingSimilar = ref(false)
-const hasLoadedSimilar = ref(false)
-
-const editDialogVisible = ref(false)
-const editFormRef = ref()
+const mistakes = ref([]);
+const showAddDialog = ref(false);
+const showDetailDialog = ref(false);
+const showReviewDialog = ref(false);
+const selectedMistake = ref(null);
+const reviewingMistake = ref(null);
+const reviewResult = ref("");
+const reviewNotes = ref("");
+const showAnswer = ref(false);
+const addFormRef = ref();
+const recognizing = ref(false);
+const similarQuestions = ref([]);
+const loadingSimilar = ref(false);
+const hasLoadedSimilar = ref(false);
+const editDialogVisible = ref(false);
+const editFormRef = ref();
 const editForm = reactive({
-  subject: '',
-  knowledge_point: '',
-  error_type: '',
-  difficulty: '',
-  answer: '',
-  analysis: '',
-  error_reason: ''
-})
-const editingId = ref<number | null>(null)
-
+  subject: "",
+  knowledge_point: "",
+  error_type: "",
+  difficulty: "",
+  answer: "",
+  analysis: "",
+  error_reason: ""
+});
+const editingId = ref(null);
 const filters = reactive({
-  subject: '',
-  mastery_level: ''
-})
-
+  subject: "",
+  mastery_level: ""
+});
 const addForm = reactive({
-  subject: '',
-  knowledge_point: '',
-  error_type: '',
-  difficulty: '',
-  question_text: '',
-  answer: '',
-  analysis: '',
-  error_reason: '',
-  image_path: ''
-})
-
+  subject: "",
+  knowledge_point: "",
+  error_type: "",
+  difficulty: "",
+  question_text: "",
+  answer: "",
+  analysis: "",
+  error_reason: "",
+  image_path: ""
+});
 const addRules = {
-  subject: [{ required: true, message: '请选择科目', trigger: 'change' }]
-}
-
-function getMasteryTagType(level: string) {
+  subject: [{ required: true, message: "请选择科目", trigger: "change" }]
+};
+function getMasteryTagType(level) {
   switch (level) {
-    case '生疏': return 'danger'
-    case '熟悉': return 'warning'
-    case '掌握': return 'success'
-    default: return 'info'
+    case "生疏":
+      return "danger";
+    case "熟悉":
+      return "warning";
+    case "掌握":
+      return "success";
+    default:
+      return "info";
   }
 }
-
 async function loadMistakes() {
-  const params: Record<string, string> = {}
-  if (filters.subject) params.subject = filters.subject
-  if (filters.mastery_level) params.mastery_level = filters.mastery_level
-  mistakes.value = await getMistakes(params)
+  const params = {};
+  if (filters.subject) params.subject = filters.subject;
+  if (filters.mastery_level) params.mastery_level = filters.mastery_level;
+  mistakes.value = await getMistakes(params);
 }
-
-onMounted(loadMistakes)
-
-async function handleImageSelect(file: File): Promise<boolean> {
+onMounted(loadMistakes);
+async function handleImageSelect(file) {
   try {
-    const result = await uploadMistakeImage(file)
-    addForm.image_path = result.image_path
-    ElMessage.success('图片上传成功')
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.detail || '图片上传失败')
+    const result = await uploadMistakeImage(file);
+    addForm.image_path = result.image_path;
+    ElMessage.success("图片上传成功");
+  } catch (error) {
+    ElMessage.error(error.response?.data?.detail || "图片上传失败");
   }
-  return false
+  return false;
 }
-
-async function handlePaste(event: ClipboardEvent) {
-  const items = event.clipboardData?.items
-  if (!items) return
-
+async function handlePaste(event) {
+  const items = event.clipboardData?.items;
+  if (!items) return;
   for (const item of items) {
-    if (item.type.startsWith('image/')) {
-      event.preventDefault()
-      const file = item.getAsFile()
+    if (item.type.startsWith("image/")) {
+      event.preventDefault();
+      const file = item.getAsFile();
       if (file) {
-        await handleImageSelect(file)
-        return
+        await handleImageSelect(file);
+        return;
       }
     }
   }
-
-  const files = event.clipboardData?.files
+  const files = event.clipboardData?.files;
   if (files && files.length > 0) {
-    const imageFile = Array.from(files).find(f => f.type.startsWith('image/'))
+    const imageFile = Array.from(files).find((f) => f.type.startsWith("image/"));
     if (imageFile) {
-      event.preventDefault()
-      await handleImageSelect(imageFile)
+      event.preventDefault();
+      await handleImageSelect(imageFile);
     }
   }
 }
-
 function removeImage() {
-  addForm.image_path = ''
+  addForm.image_path = "";
 }
-
 async function handleRecognize() {
   if (!addForm.image_path) {
-    ElMessage.warning('请先上传题目图片')
-    return
+    ElMessage.warning("请先上传题目图片");
+    return;
   }
-  recognizing.value = true
+  recognizing.value = true;
   try {
-    const result = await recognizeMistake(addForm.image_path)
-    if (result.subject) addForm.subject = result.subject
-    if (result.knowledge_point) addForm.knowledge_point = result.knowledge_point
-    if (result.difficulty) addForm.difficulty = result.difficulty
-    if (result.error_type) addForm.error_type = result.error_type
-    if (result.answer) addForm.answer = result.answer
-    if (result.analysis) addForm.analysis = result.analysis
-    ElMessage.success(`AI识别完成，置信度: ${(result.confidence * 100).toFixed(0)}%`)
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.detail || 'AI识别失败')
+    const result = await recognizeMistake(addForm.image_path);
+    if (result.subject) addForm.subject = result.subject;
+    if (result.knowledge_point) addForm.knowledge_point = result.knowledge_point;
+    if (result.difficulty) addForm.difficulty = result.difficulty;
+    if (result.error_type) addForm.error_type = result.error_type;
+    if (result.answer) addForm.answer = result.answer;
+    if (result.analysis) addForm.analysis = result.analysis;
+    ElMessage.success(`AI识别完成，置信度: ${(result.confidence * 100).toFixed(0)}%`);
+  } catch (error) {
+    ElMessage.error(error.response?.data?.detail || "AI识别失败");
   } finally {
-    recognizing.value = false
+    recognizing.value = false;
   }
 }
-
 async function handleAdd() {
-  if (!addFormRef.value) return
-  await addFormRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
+  if (!addFormRef.value) return;
+  await addFormRef.value.validate(async (valid) => {
+    if (!valid) return;
     if (!addForm.image_path) {
-      ElMessage.warning('请上传题目图片')
-      return
+      ElMessage.warning("请上传题目图片");
+      return;
     }
     try {
-      await createMistake(addForm)
-      ElMessage.success('添加成功')
-      showAddDialog.value = false
-      loadMistakes()
-      Object.keys(addForm).forEach(key => addForm[key as keyof typeof addForm] = '')
-    } catch (error: any) {
-      ElMessage.error(error.response?.data?.detail || '添加失败')
+      await createMistake(addForm);
+      ElMessage.success("添加成功");
+      showAddDialog.value = false;
+      loadMistakes();
+      Object.keys(addForm).forEach((key) => addForm[key] = "");
+    } catch (error) {
+      ElMessage.error(error.response?.data?.detail || "添加失败");
     }
-  })
+  });
 }
-
-function viewMistake(mistake: any) {
-  selectedMistake.value = mistake
-  similarQuestions.value = []
-  hasLoadedSimilar.value = false
-  showDetailDialog.value = true
+function viewMistake(mistake) {
+  selectedMistake.value = mistake;
+  similarQuestions.value = [];
+  hasLoadedSimilar.value = false;
+  showDetailDialog.value = true;
 }
-
 async function loadSimilarQuestions() {
-  if (!selectedMistake.value) return
-  loadingSimilar.value = true
+  if (!selectedMistake.value) return;
+  loadingSimilar.value = true;
   try {
     const result = await recommendQuestions({
-      question_text: selectedMistake.value.question_text || '',
-      subject: selectedMistake.value.subject || '',
-      knowledge_point: selectedMistake.value.knowledge_point || ''
-    })
-    similarQuestions.value = result.questions || []
-    hasLoadedSimilar.value = true
+      question_text: selectedMistake.value.question_text || "",
+      subject: selectedMistake.value.subject || "",
+      knowledge_point: selectedMistake.value.knowledge_point || ""
+    });
+    similarQuestions.value = result.questions || [];
+    hasLoadedSimilar.value = true;
     if (similarQuestions.value.length === 0) {
-      ElMessage.warning('未生成推荐题目，请检查AI配置')
+      ElMessage.warning("未生成推荐题目，请检查AI配置");
     }
-  } catch (error: any) {
-    ElMessage.error('加载推荐失败')
+  } catch (error) {
+    ElMessage.error("加载推荐失败");
   } finally {
-    loadingSimilar.value = false
+    loadingSimilar.value = false;
   }
 }
-
-function openReviewDialog(mistake: any) {
-  reviewingMistake.value = mistake
-  reviewResult.value = ''
-  reviewNotes.value = ''
-  showAnswer.value = false
-  showReviewDialog.value = true
+function openReviewDialog(mistake) {
+  reviewingMistake.value = mistake;
+  reviewResult.value = "";
+  reviewNotes.value = "";
+  showAnswer.value = false;
+  showReviewDialog.value = true;
 }
-
 async function handleReview() {
   if (!reviewResult.value) {
-    ElMessage.warning('请选择答题结果')
-    return
+    ElMessage.warning("请选择答题结果");
+    return;
   }
   try {
     await reviewMistakeApi(reviewingMistake.value.id, {
       result: reviewResult.value,
       notes: reviewNotes.value
-    })
-    ElMessage.success('提交成功')
-    showReviewDialog.value = false
-    loadMistakes()
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.detail || '提交失败')
+    });
+    ElMessage.success("提交成功");
+    showReviewDialog.value = false;
+    loadMistakes();
+  } catch (error) {
+    ElMessage.error(error.response?.data?.detail || "提交失败");
   }
 }
-
-function openEditDialog(mistake: any) {
-  editingId.value = mistake.id
-  editForm.subject = mistake.subject || ''
-  editForm.knowledge_point = mistake.knowledge_point || ''
-  editForm.error_type = mistake.error_type || ''
-  editForm.difficulty = mistake.difficulty || ''
-  editForm.answer = mistake.answer || ''
-  editForm.analysis = mistake.analysis || ''
-  editForm.error_reason = mistake.error_reason || ''
-  editDialogVisible.value = true
+function openEditDialog(mistake) {
+  editingId.value = mistake.id;
+  editForm.subject = mistake.subject || "";
+  editForm.knowledge_point = mistake.knowledge_point || "";
+  editForm.error_type = mistake.error_type || "";
+  editForm.difficulty = mistake.difficulty || "";
+  editForm.answer = mistake.answer || "";
+  editForm.analysis = mistake.analysis || "";
+  editForm.error_reason = mistake.error_reason || "";
+  editDialogVisible.value = true;
 }
-
 async function saveEdit() {
-  if (!editingId.value) return
+  if (!editingId.value) return;
   try {
     await updateMistakeApi(editingId.value, {
-      subject: editForm.subject || undefined,
-      knowledge_point: editForm.knowledge_point || undefined,
-      error_type: editForm.error_type || undefined,
-      difficulty: editForm.difficulty || undefined,
-      answer: editForm.answer || undefined,
-      analysis: editForm.analysis || undefined,
-      error_reason: editForm.error_reason || undefined
-    })
-    ElMessage.success('修改成功')
-    editDialogVisible.value = false
-    loadMistakes()
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.detail || '修改失败')
+      subject: editForm.subject || void 0,
+      knowledge_point: editForm.knowledge_point || void 0,
+      error_type: editForm.error_type || void 0,
+      difficulty: editForm.difficulty || void 0,
+      answer: editForm.answer || void 0,
+      analysis: editForm.analysis || void 0,
+      error_reason: editForm.error_reason || void 0
+    });
+    ElMessage.success("修改成功");
+    editDialogVisible.value = false;
+    loadMistakes();
+  } catch (error) {
+    ElMessage.error(error.response?.data?.detail || "修改失败");
   }
 }
-
-async function handleDelete(mistake: any) {
-  let confirmed = false
+async function handleDelete(mistake) {
+  let confirmed = false;
   try {
-    await ElMessageBox.confirm('确定要删除这个错题吗？', '提示', {
-      type: 'warning'
-    })
-    confirmed = true
-    await deleteMistakeApi(mistake.id)
-    ElMessage.success('删除成功')
-    loadMistakes()
-  } catch (error: any) {
+    await ElMessageBox.confirm("确定要删除这个错题吗？", "提示", {
+      type: "warning"
+    });
+    confirmed = true;
+    await deleteMistakeApi(mistake.id);
+    ElMessage.success("删除成功");
+    loadMistakes();
+  } catch (error) {
     if (confirmed) {
-      ElMessage.error(error.response?.data?.detail || '删除失败，请稍后重试')
+      ElMessage.error(error.response?.data?.detail || "删除失败，请稍后重试");
     }
   }
 }

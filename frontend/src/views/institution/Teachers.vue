@@ -78,110 +78,100 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { institutionApi, type StaffUser } from '../../api/organization'
-
-const loading = ref(false)
-const teachers = ref<StaffUser[]>([])
-
-const dialogVisible = ref(false)
-const saving = ref(false)
-const editingId = ref<number | null>(null)
-const form = ref({ username: '', email: '', password: '' })
-
+<script setup>import { ref, onMounted } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { institutionApi } from "../../api/organization";
+const loading = ref(false);
+const teachers = ref([]);
+const dialogVisible = ref(false);
+const saving = ref(false);
+const editingId = ref(null);
+const form = ref({ username: "", email: "", password: "" });
 async function loadTeachers() {
-  loading.value = true
+  loading.value = true;
   try {
-    teachers.value = await institutionApi.listTeachers()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '加载失败')
+    teachers.value = await institutionApi.listTeachers();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "加载失败");
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
-
 function openCreate() {
-  editingId.value = null
-  form.value = { username: '', email: '', password: '' }
-  dialogVisible.value = true
+  editingId.value = null;
+  form.value = { username: "", email: "", password: "" };
+  dialogVisible.value = true;
 }
-
-function openEdit(row: StaffUser) {
-  editingId.value = row.id
-  form.value = { username: row.username, email: row.email, password: '' }
-  dialogVisible.value = true
+function openEdit(row) {
+  editingId.value = row.id;
+  form.value = { username: row.username, email: row.email, password: "" };
+  dialogVisible.value = true;
 }
-
 async function handleSave() {
   if (form.value.username.trim().length < 3) {
-    ElMessage.warning('用户名至少 3 个字符')
-    return
+    ElMessage.warning("用户名至少 3 个字符");
+    return;
   }
   if (!form.value.email.trim()) {
-    ElMessage.warning('请输入邮箱')
-    return
+    ElMessage.warning("请输入邮箱");
+    return;
   }
   if (!editingId.value && form.value.password.length < 6) {
-    ElMessage.warning('初始密码至少 6 位')
-    return
+    ElMessage.warning("初始密码至少 6 位");
+    return;
   }
   if (form.value.password && form.value.password.length < 6) {
-    ElMessage.warning('密码至少 6 位')
-    return
+    ElMessage.warning("密码至少 6 位");
+    return;
   }
-  saving.value = true
+  saving.value = true;
   try {
     if (editingId.value) {
       await institutionApi.updateTeacher(editingId.value, {
         username: form.value.username.trim(),
         email: form.value.email.trim(),
-        ...(form.value.password ? { password: form.value.password } : {}),
-      })
-      ElMessage.success('教师账号已更新')
+        ...form.value.password ? { password: form.value.password } : {}
+      });
+      ElMessage.success("教师账号已更新");
     } else {
       await institutionApi.createTeacher({
         username: form.value.username.trim(),
         email: form.value.email.trim(),
-        password: form.value.password,
-      })
-      ElMessage.success('教师账号创建成功')
+        password: form.value.password
+      });
+      ElMessage.success("教师账号创建成功");
     }
-    dialogVisible.value = false
-    await loadTeachers()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '保存失败')
+    dialogVisible.value = false;
+    await loadTeachers();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "保存失败");
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
-
-async function handleDelete(row: StaffUser) {
+async function handleDelete(row) {
   try {
     await ElMessageBox.confirm(
       `确定删除教师账号「${row.username}」吗？该教师与本班机构所有班级的任教关系会一并解除，此操作不可恢复。`,
-      '删除确认',
-      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
-    )
+      "删除确认",
+      { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" }
+    );
   } catch {
-    return
+    return;
   }
   try {
-    await institutionApi.deleteTeacher(row.id)
-    ElMessage.success('教师账号已删除')
-    await loadTeachers()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '删除失败')
+    await institutionApi.deleteTeacher(row.id);
+    ElMessage.success("教师账号已删除");
+    await loadTeachers();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "删除失败");
   }
 }
-
-function formatTime(t?: string | null): string {
-  if (!t) return ''
-  return t.replace('T', ' ').slice(0, 16)
+function formatTime(t) {
+  if (!t) return "";
+  return t.replace("T", " ").slice(0, 16);
 }
-
-onMounted(loadTeachers)
+onMounted(loadTeachers);
 </script>
 
 <style scoped>

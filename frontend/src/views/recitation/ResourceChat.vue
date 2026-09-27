@@ -53,188 +53,176 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { User, Message } from '@element-plus/icons-vue'
-import { agentChat, getAgentHistory, clearAgentHistory } from '../../api/agent'
-import katex from 'katex'
-import 'katex/dist/katex.min.css'
-
-const SUBJECTS = ['数学', '英语', '政治', '马原', '毛中特', '史纲', '思修', '时政', '专业课']
-
-const messages = ref<any[]>([])
-const inputMessage = ref('')
-const loading = ref(false)
-const subjectFilter = ref('')
-const chatContainerRef = ref<HTMLElement | null>(null)
-const AGENT_NAME = 'resource-qa'
-
+<script setup>
+import { User, Message } from '@element-plus/icons-vue';import { ref, onMounted } from 'vue';
+import { ElMessage } from 'element-plus';
+import { agentChat, getAgentHistory, clearAgentHistory } from '../../api/agent';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
+const SUBJECTS = ['数学', '英语', '政治', '马原', '毛中特', '史纲', '思修', '时政', '专业课'];
+const messages = ref([]);
+const inputMessage = ref('');
+const loading = ref(false);
+const subjectFilter = ref('');
+const chatContainerRef = ref(null);
+const AGENT_NAME = 'resource-qa';
 onMounted(async () => {
-  await loadHistory()
-})
-
+    await loadHistory();
+});
 async function loadHistory() {
-  try {
-    const history = await getAgentHistory(AGENT_NAME, 50)
-    messages.value = history.map((m: any) => ({
-      role: m.message_type === 'question' ? 'user' : 'ai',
-      content: m.content,
-      source: m.source,
-      chunks: m.relevant_chunks || []
-    }))
-  } catch { /* ignore */ }
-}
-
-async function handleSend() {
-  const msg = inputMessage.value.trim()
-  if (!msg || loading.value) return
-
-  messages.value.push({ role: 'user', content: msg })
-  inputMessage.value = ''
-  loading.value = true
-
-  try {
-    const result = await agentChat({
-      agent_name: AGENT_NAME,
-      message: msg,
-      subject: subjectFilter.value || undefined
-    })
-    messages.value.push({
-      role: 'ai',
-      content: result.answer,
-      source: result.source,
-      chunks: result.relevant_chunks || []
-    })
-  } catch (e: any) {
-    const detail = e.response?.data?.detail || '请求失败'
-    messages.value.push({ role: 'ai', content: `错误: ${detail}`, source: 'error', chunks: [] })
-  } finally {
-    loading.value = false
-    scrollToBottom()
-  }
-}
-
-function scrollToBottom() {
-  setTimeout(() => {
-    if (chatContainerRef.value) {
-      chatContainerRef.value.scrollTop = chatContainerRef.value.scrollHeight
-    }
-  }, 100)
-}
-
-async function handleClear() {
-  await clearAgentHistory(AGENT_NAME)
-  messages.value = []
-  ElMessage.success('历史已清除')
-}
-
-function truncate(text: string, maxLen: number): string {
-  if (!text || text.length <= maxLen) return text || ''
-  return text.slice(0, maxLen) + '...'
-}
-
-function getScoreType(similarity: number): string {
-  if (similarity >= 0.8) return 'success'
-  if (similarity >= 0.5) return 'warning'
-  return 'danger'
-}
-
-function renderMathFormula(formula: string, displayMode: boolean): string {
-  try {
-    return katex.renderToString(formula.trim(), {
-      displayMode,
-      throwOnError: false,
-      strict: false,
-      trust: true
-    })
-  } catch {
-    return `<span class="math-error">${displayMode ? '$$' : '$'}${formula.trim()}${displayMode ? '$$' : '$'}</span>`
-  }
-}
-
-function normalizeLatex(formula: string): string {
-  return formula
-    .replace(/\\[Ll]im/g, '\\lim')
-    .replace(/\\([Ss]um|[Pp]rod|[Ii]nt)/g, '\\$1')
-    .replace(/\\[Ff]rac/g, '\\frac')
-    .replace(/\\[Ss]qrt/g, '\\sqrt')
-    .replace(/\\[Aa]lpha/g, '\\alpha')
-    .replace(/\\[Bb]eta/g, '\\beta')
-    .replace(/\\[Gg]amma/g, '\\gamma')
-    .replace(/\\[Dd]elta/g, '\\delta')
-    .replace(/\\[Pp]i/g, '\\pi')
-    .replace(/\\[Tt]heta/g, '\\theta')
-    .replace(/\\[Ii]nfty/g, '\\infty')
-    .replace(/\\[Rr]ightarrow/g, '\\rightarrow')
-    .replace(/\\[Ll]eftarrow/g, '\\leftarrow')
-    .replace(/\\[Tt]o/g, '\\to')
-    // ∞ 拼写错误兜底（含空格连写）
-    .replace(/\\inf\s*i\s*t\s*[yi]/g, '\\infty')
-    .replace(/(^|[^A-Za-z])inf\s*i\s*t\s*y(?![A-Za-z])/g, '$1\\infty')
-    .replace(/(^|[^A-Za-z])inf\s*it\s*y(?![A-Za-z])/g, '$1\\infty')
-    .replace(/(^|[^A-Za-z])inf\s*in\s*ity(?![A-Za-z])/g, '$1\\infty')
-    .replace(/inf\s*ty/g, '\\infty')
-    .replace(/infinity/g, '\\infty')
-    .replace(/inf\b/g, '\\infty')
-    .replace(/->/g, '\\to')
-    .replace(/→/g, '\\to')
-    .replace(/\*/g, ' \\cdot ')
-}
-
-function renderMarkdown(text: string): string {
-  if (!text) return ''
-
-  let result = text
-
-  const mathBlocks: { placeholder: string; html: string }[] = []
-
-  const addMathBlock = (formula: string, displayMode: boolean): string => {
-    const normalized = normalizeLatex(formula)
     try {
-      const html = renderMathFormula(normalized, displayMode)
-      const placeholder = `XMK${mathBlocks.length}MKX`
-      mathBlocks.push({ placeholder, html })
-      return placeholder
-    } catch {
-      return displayMode ? `$$${formula}$$` : `$${formula}$`
+        const history = await getAgentHistory(AGENT_NAME, 50);
+        messages.value = history.map((m) => ({
+            role: m.message_type === 'question' ? 'user' : 'ai',
+            content: m.content,
+            source: m.source,
+            chunks: m.relevant_chunks || []
+        }));
     }
-  }
-
-  result = result.replace(/\$\$([\s\S]*?)\$\$/g, (_, formula) => {
-    const trimmed = formula.trim()
-    if (!trimmed) return '$$'
-    return addMathBlock(trimmed, true)
-  })
-
-  result = result.replace(/\$([^\$\n]+?)\$/g, (_, formula) => {
-    const trimmed = formula.trim()
-    if (!trimmed) return '$'
-    if (trimmed.length > 80) {
-      return addMathBlock(trimmed, true)
-    }
-    return addMathBlock(trimmed, false)
-  })
-
-  result = result
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/^### (.*$)/gm, '<h3>$1</h3>')
-    .replace(/^## (.*$)/gm, '<h2>$1</h2>')
-    .replace(/^# (.*$)/gm, '<h1>$1</h1>')
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\n\n/g, '</p><p>')
-    .replace(/\n/g, '<br>')
-
-  mathBlocks.forEach(({ placeholder, html }) => {
-    result = result.split(placeholder).join(html)
-  })
-
-  return result
+    catch { /* ignore */ }
 }
-
-defineExpose({ handleClear })
+async function handleSend() {
+    const msg = inputMessage.value.trim();
+    if (!msg || loading.value)
+        return;
+    messages.value.push({ role: 'user', content: msg });
+    inputMessage.value = '';
+    loading.value = true;
+    try {
+        const result = await agentChat({
+            agent_name: AGENT_NAME,
+            message: msg,
+            subject: subjectFilter.value || undefined
+        });
+        messages.value.push({
+            role: 'ai',
+            content: result.answer,
+            source: result.source,
+            chunks: result.relevant_chunks || []
+        });
+    }
+    catch (e) {
+        const detail = e.response?.data?.detail || '请求失败';
+        messages.value.push({ role: 'ai', content: `错误: ${detail}`, source: 'error', chunks: [] });
+    }
+    finally {
+        loading.value = false;
+        scrollToBottom();
+    }
+}
+function scrollToBottom() {
+    setTimeout(() => {
+        if (chatContainerRef.value) {
+            chatContainerRef.value.scrollTop = chatContainerRef.value.scrollHeight;
+        }
+    }, 100);
+}
+async function handleClear() {
+    await clearAgentHistory(AGENT_NAME);
+    messages.value = [];
+    ElMessage.success('历史已清除');
+}
+function truncate(text, maxLen) {
+    if (!text || text.length <= maxLen)
+        return text || '';
+    return text.slice(0, maxLen) + '...';
+}
+function getScoreType(similarity) {
+    if (similarity >= 0.8)
+        return 'success';
+    if (similarity >= 0.5)
+        return 'warning';
+    return 'danger';
+}
+function renderMathFormula(formula, displayMode) {
+    try {
+        return katex.renderToString(formula.trim(), {
+            displayMode,
+            throwOnError: false,
+            strict: false,
+            trust: true
+        });
+    }
+    catch {
+        return `<span class="math-error">${displayMode ? '$$' : '$'}${formula.trim()}${displayMode ? '$$' : '$'}</span>`;
+    }
+}
+function normalizeLatex(formula) {
+    return formula
+        .replace(/\\[Ll]im/g, '\\lim')
+        .replace(/\\([Ss]um|[Pp]rod|[Ii]nt)/g, '\\$1')
+        .replace(/\\[Ff]rac/g, '\\frac')
+        .replace(/\\[Ss]qrt/g, '\\sqrt')
+        .replace(/\\[Aa]lpha/g, '\\alpha')
+        .replace(/\\[Bb]eta/g, '\\beta')
+        .replace(/\\[Gg]amma/g, '\\gamma')
+        .replace(/\\[Dd]elta/g, '\\delta')
+        .replace(/\\[Pp]i/g, '\\pi')
+        .replace(/\\[Tt]heta/g, '\\theta')
+        .replace(/\\[Ii]nfty/g, '\\infty')
+        .replace(/\\[Rr]ightarrow/g, '\\rightarrow')
+        .replace(/\\[Ll]eftarrow/g, '\\leftarrow')
+        .replace(/\\[Tt]o/g, '\\to')
+        // ∞ 拼写错误兜底（含空格连写）
+        .replace(/\\inf\s*i\s*t\s*[yi]/g, '\\infty')
+        .replace(/(^|[^A-Za-z])inf\s*i\s*t\s*y(?![A-Za-z])/g, '$1\\infty')
+        .replace(/(^|[^A-Za-z])inf\s*it\s*y(?![A-Za-z])/g, '$1\\infty')
+        .replace(/(^|[^A-Za-z])inf\s*in\s*ity(?![A-Za-z])/g, '$1\\infty')
+        .replace(/inf\s*ty/g, '\\infty')
+        .replace(/infinity/g, '\\infty')
+        .replace(/inf\b/g, '\\infty')
+        .replace(/->/g, '\\to')
+        .replace(/→/g, '\\to')
+        .replace(/\*/g, ' \\cdot ');
+}
+function renderMarkdown(text) {
+    if (!text)
+        return '';
+    let result = text;
+    const mathBlocks = [];
+    const addMathBlock = (formula, displayMode) => {
+        const normalized = normalizeLatex(formula);
+        try {
+            const html = renderMathFormula(normalized, displayMode);
+            const placeholder = `XMK${mathBlocks.length}MKX`;
+            mathBlocks.push({ placeholder, html });
+            return placeholder;
+        }
+        catch {
+            return displayMode ? `$$${formula}$$` : `$${formula}$`;
+        }
+    };
+    result = result.replace(/\$\$([\s\S]*?)\$\$/g, (_, formula) => {
+        const trimmed = formula.trim();
+        if (!trimmed)
+            return '$$';
+        return addMathBlock(trimmed, true);
+    });
+    result = result.replace(/\$([^\$\n]+?)\$/g, (_, formula) => {
+        const trimmed = formula.trim();
+        if (!trimmed)
+            return '$';
+        if (trimmed.length > 80) {
+            return addMathBlock(trimmed, true);
+        }
+        return addMathBlock(trimmed, false);
+    });
+    result = result
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/^### (.*$)/gm, '<h3>$1</h3>')
+        .replace(/^## (.*$)/gm, '<h2>$1</h2>')
+        .replace(/^# (.*$)/gm, '<h1>$1</h1>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/\n/g, '<br>');
+    mathBlocks.forEach(({ placeholder, html }) => {
+        result = result.split(placeholder).join(html);
+    });
+    return result;
+}
+defineExpose({ handleClear });
 </script>
 
 <style scoped>

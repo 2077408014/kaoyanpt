@@ -28,7 +28,14 @@
 
     <el-table :data="submissions" v-loading="loading" stripe border class="sub-table">
       <el-table-column prop="student_name" label="学生" width="140" />
-      <el-table-column prop="content" label="提交内容" min-width="280" show-overflow-tooltip />
+      <el-table-column label="提交内容" min-width="280" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span>{{ row.content }}</span>
+          <el-tag v-if="row.images?.length" type="info" effect="plain" size="small" style="margin-left: 6px">
+            图 ×{{ row.images.length }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="submitted_at" label="提交时间" width="170">
         <template #default="{ row }">{{ formatTime(row.submitted_at) }}</template>
       </el-table-column>
@@ -53,6 +60,16 @@
       <div v-if="current" class="grade-body">
         <p class="grade-student">{{ current.student_name }} 的提交</p>
         <div class="grade-content">{{ current.content }}</div>
+        <div v-if="current.images?.length" class="grade-images">
+          <el-image
+            v-for="p in current.images"
+            :key="p"
+            :src="'/uploads/' + p"
+            :preview-src-list="gradePreviewList"
+            fit="cover"
+            class="grade-img"
+          />
+        </div>
         <el-form label-width="70px" style="margin-top: 16px" @submit.prevent>
           <el-form-item label="分数">
             <el-input-number v-model="gradeScore" :min="0" :max="100" :precision="0" />
@@ -71,88 +88,79 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { teacherApi, type Assignment, type Submission } from '../../api/organization'
-
-const route = useRoute()
-const assignmentId = Number(route.params.assignmentId)
-
-const loading = ref(false)
-const assignment = ref<Assignment | null>(null)
-const submissions = ref<Submission[]>([])
-
-const gradeVisible = ref(false)
-const saving = ref(false)
-const current = ref<Submission | null>(null)
-const gradeScore = ref<number>(80)
-const gradeFeedback = ref('')
-
-const gradedCount = computed(() =>
-  submissions.value.filter(s => s.score !== null && s.score !== undefined).length
-)
-
-function openGrade(row: Submission) {
-  current.value = row
-  gradeScore.value = row.score ?? 80
-  gradeFeedback.value = row.feedback || ''
-  gradeVisible.value = true
+<script setup>import { ref, computed, onMounted } from "vue";
+import { useRoute } from "vue-router";
+import { ElMessage } from "element-plus";
+import { teacherApi } from "../../api/organization";
+const route = useRoute();
+const assignmentId = Number(route.params.assignmentId);
+const loading = ref(false);
+const assignment = ref(null);
+const submissions = ref([]);
+const gradeVisible = ref(false);
+const saving = ref(false);
+const current = ref(null);
+const gradeScore = ref(80);
+const gradeFeedback = ref("");
+const gradedCount = computed(
+  () => submissions.value.filter((s) => s.score !== null && s.score !== void 0).length
+);
+const gradePreviewList = computed(() => (current.value?.images || []).map((x) => "/uploads/" + x));
+function openGrade(row) {
+  current.value = row;
+  gradeScore.value = row.score ?? 80;
+  gradeFeedback.value = row.feedback || "";
+  gradeVisible.value = true;
 }
-
 async function handleGrade() {
-  if (!current.value) return
-  if (gradeScore.value === null || gradeScore.value === undefined) {
-    ElMessage.warning('请输入分数')
-    return
+  if (!current.value) return;
+  if (gradeScore.value === null || gradeScore.value === void 0) {
+    ElMessage.warning("请输入分数");
+    return;
   }
-  saving.value = true
+  saving.value = true;
   try {
     const updated = await teacherApi.gradeSubmission(assignmentId, {
       student_id: current.value.student_id,
       score: gradeScore.value,
-      feedback: gradeFeedback.value,
-    })
-    const idx = submissions.value.findIndex(s => s.student_id === updated.student_id)
-    if (idx >= 0) submissions.value[idx] = updated
+      feedback: gradeFeedback.value
+    });
+    const idx = submissions.value.findIndex((s) => s.student_id === updated.student_id);
+    if (idx >= 0) submissions.value[idx] = updated;
     if (assignment.value) {
-      assignment.value.submission_count = submissions.value.length
-      assignment.value.graded_count = gradedCount.value
+      assignment.value.submission_count = submissions.value.length;
+      assignment.value.graded_count = gradedCount.value;
     }
-    ElMessage.success('批改成功')
-    gradeVisible.value = false
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '批改失败')
+    ElMessage.success("批改成功");
+    gradeVisible.value = false;
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "批改失败");
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
-
-function isOverdue(due: string): boolean {
-  return new Date(due).getTime() <= Date.now()
+function isOverdue(due) {
+  return new Date(due).getTime() <= Date.now();
 }
-
-function formatTime(t?: string | null): string {
-  if (!t) return ''
-  return t.replace('T', ' ').slice(0, 16)
+function formatTime(t) {
+  if (!t) return "";
+  return t.replace("T", " ").slice(0, 16);
 }
-
 onMounted(async () => {
-  loading.value = true
+  loading.value = true;
   try {
     const [asm, subs] = await Promise.all([
       teacherApi.getAssignment(assignmentId),
-      teacherApi.listSubmissions(assignmentId),
-    ])
-    assignment.value = asm
-    submissions.value = subs
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '加载失败')
+      teacherApi.listSubmissions(assignmentId)
+    ]);
+    assignment.value = asm;
+    submissions.value = subs;
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "加载失败");
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-})
+});
 </script>
 
 <style scoped>
@@ -177,4 +185,6 @@ onMounted(async () => {
   line-height: 1.6;
   font-size: 14px;
 }
+.grade-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.grade-img { width: 96px; height: 96px; border-radius: 6px; border: 1px solid #e5e7eb; }
 </style>

@@ -3,9 +3,8 @@
   <ForceChangePassword />
 </template>
 
-<script setup lang="ts">
-import ForceChangePassword from './components/ForceChangePassword.vue'
-</script>
+<script setup>
+import ForceChangePassword from './components/ForceChangePassword.vue';</script>
 
 <style>
 * {

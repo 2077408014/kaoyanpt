@@ -104,126 +104,106 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, computed, watch, onBeforeUnmount } from 'vue'
-import { ElMessage } from 'element-plus'
-import * as echarts from 'echarts'
-import {
-  type StudentOverview, type MistakeItem, type DailyPoint,
-} from '../api/organization'
-
-interface StudentApi {
-  studentOverview: (id: number) => Promise<StudentOverview>
-  studentMistakes: (id: number, subject?: string) => Promise<MistakeItem[]>
-  studentMistakeDetail: (id: number, mistakeId: number) => Promise<MistakeItem>
+<script setup>import { ref, computed, watch, onBeforeUnmount } from "vue";
+import { ElMessage } from "element-plus";
+import * as echarts from "echarts";
+const props = defineProps({
+  studentId: { type: Number, required: true },
+  api: { type: Object, required: true }
+});
+const loading = ref(false);
+const overview = ref(null);
+const mistakes = ref([]);
+const subject = ref("");
+const detailVisible = ref(false);
+const detail = ref(null);
+const distEntries = computed(() => Object.entries(overview.value?.mastery_distribution || {}));
+const subjectOptions = computed(() => [...new Set(mistakes.value.map((m) => m.subject))]);
+function dayScore(d) {
+  return d.study_time + d.words + d.questions + d.mistakes + d.abnormal;
 }
-
-const props = defineProps<{ studentId: number; api: StudentApi }>()
-
-const loading = ref(false)
-const overview = ref<StudentOverview | null>(null)
-const mistakes = ref<MistakeItem[]>([])
-const subject = ref('')
-const detailVisible = ref(false)
-const detail = ref<MistakeItem | null>(null)
-
-const distEntries = computed(() => Object.entries(overview.value?.mastery_distribution || {}))
-const subjectOptions = computed(() => [...new Set(mistakes.value.map(m => m.subject))])
-// 当日综合得分：学习分钟 + 单词 + 做题 + 新增错题 + 监督异常
-function dayScore(d: DailyPoint): number {
-  return d.study_time + d.words + d.questions + d.mistakes + d.abnormal
-}
-
-// ---------- 趋势折线图 ----------
-const trendRef = ref<HTMLElement | null>(null)
-let trendChart: echarts.ECharts | null = null
-
+const trendRef = ref(null);
+let trendChart = null;
 function renderTrend() {
-  const daily = overview.value?.daily
-  if (!trendRef.value || !daily) return
-  if (!trendChart) trendChart = echarts.init(trendRef.value)
-  const dates = daily.map(d => d.date.slice(5))
-  // 有监督异常的日期在合计线上标红点
-  const composite = daily.map(d => ({
+  const daily = overview.value?.daily;
+  if (!trendRef.value || !daily) return;
+  if (!trendChart) trendChart = echarts.init(trendRef.value);
+  const dates = daily.map((d) => d.date.slice(5));
+  const composite = daily.map((d) => ({
     value: dayScore(d),
-    itemStyle: d.abnormal > 0 ? { color: '#ef4444' } : undefined,
-  }))
+    itemStyle: d.abnormal > 0 ? { color: "#ef4444" } : void 0
+  }));
   trendChart.setOption({
     tooltip: {
-      trigger: 'axis',
-      valueFormatter: (v: unknown) => String(v),
+      trigger: "axis",
+      valueFormatter: (v) => String(v)
     },
     legend: {
-      data: ['合计', '学习分钟', '单词', '做题', '错题', '监督异常'],
+      data: ["合计", "学习分钟", "单词", "做题", "错题", "监督异常"],
       selected: { 学习分钟: false, 单词: false, 做题: false, 错题: false, 监督异常: false },
-      bottom: 0,
+      bottom: 0
     },
     grid: { left: 40, right: 16, top: 16, bottom: 42 },
-    xAxis: { type: 'category', data: dates, boundaryGap: false },
-    yAxis: { type: 'value', minInterval: 1 },
+    xAxis: { type: "category", data: dates, boundaryGap: false },
+    yAxis: { type: "value", minInterval: 1 },
     series: [
       {
-        name: '合计', type: 'line', smooth: true, data: composite,
-        lineStyle: { width: 3 }, areaStyle: { opacity: 0.08 },
+        name: "合计",
+        type: "line",
+        smooth: true,
+        data: composite,
+        lineStyle: { width: 3 },
+        areaStyle: { opacity: 0.08 }
       },
-      { name: '学习分钟', type: 'line', smooth: true, data: daily.map(d => d.study_time) },
-      { name: '单词', type: 'line', smooth: true, data: daily.map(d => d.words) },
-      { name: '做题', type: 'line', smooth: true, data: daily.map(d => d.questions) },
-      { name: '错题', type: 'line', smooth: true, data: daily.map(d => d.mistakes) },
-      { name: '监督异常', type: 'line', smooth: true, data: daily.map(d => d.abnormal) },
-    ],
-  })
+      { name: "学习分钟", type: "line", smooth: true, data: daily.map((d) => d.study_time) },
+      { name: "单词", type: "line", smooth: true, data: daily.map((d) => d.words) },
+      { name: "做题", type: "line", smooth: true, data: daily.map((d) => d.questions) },
+      { name: "错题", type: "line", smooth: true, data: daily.map((d) => d.mistakes) },
+      { name: "监督异常", type: "line", smooth: true, data: daily.map((d) => d.abnormal) }
+    ]
+  });
 }
-
 onBeforeUnmount(() => {
-  trendChart?.dispose()
-  trendChart = null
-})
-
-function masteryType(level: string) {
-  if (level === '掌握') return 'success'
-  if (level === '熟悉') return 'warning'
-  return 'info'
+  trendChart?.dispose();
+  trendChart = null;
+});
+function masteryType(level) {
+  if (level === "掌握") return "success";
+  if (level === "熟悉") return "warning";
+  return "info";
 }
-
-function formatTime(t?: string) {
-  return t ? new Date(t).toLocaleString('zh-CN', { hour12: false }) : '-'
+function formatTime(t) {
+  return t ? new Date(t).toLocaleString("zh-CN", { hour12: false }) : "-";
 }
-
 async function loadMistakes() {
-  mistakes.value = await props.api.studentMistakes(props.studentId, subject.value || undefined)
+  mistakes.value = await props.api.studentMistakes(props.studentId, subject.value || void 0);
 }
-
-async function openDetail(row: MistakeItem) {
+async function openDetail(row) {
   try {
-    detail.value = await props.api.studentMistakeDetail(props.studentId, row.id)
+    detail.value = await props.api.studentMistakeDetail(props.studentId, row.id);
   } catch {
-    detail.value = row
+    detail.value = row;
   }
-  detailVisible.value = true
+  detailVisible.value = true;
 }
-
 async function loadAll() {
-  // 切换学生时重置面板状态
-  overview.value = null
-  mistakes.value = []
-  subject.value = ''
-  detail.value = null
-  detailVisible.value = false
-  loading.value = true
+  overview.value = null;
+  mistakes.value = [];
+  subject.value = "";
+  detail.value = null;
+  detailVisible.value = false;
+  loading.value = true;
   try {
-    overview.value = await props.api.studentOverview(props.studentId)
-    await loadMistakes()
-    renderTrend()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '加载失败')
+    overview.value = await props.api.studentOverview(props.studentId);
+    await loadMistakes();
+    renderTrend();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "加载失败");
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
-
-// immediate 同时覆盖首次进入与切换学生两种情况
-watch(() => props.studentId, loadAll, { immediate: true })
+watch(() => props.studentId, loadAll, { immediate: true });
 </script>
 
 <style scoped>

@@ -73,133 +73,120 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { adminApi, type Institution, type StaffUser } from '../../api/organization'
-
-const loading = ref(false)
-const saving = ref(false)
-const users = ref<StaffUser[]>([])
-const institutions = ref<Institution[]>([])
-const activeTab = ref<'teacher' | 'institution_admin'>('teacher')
-
-const groupedUsers = computed(() => users.value.filter(u => u.role === activeTab.value))
-
-const dialogVisible = ref(false)
-const editingId = ref<number | null>(null)
+<script setup>import { ref, computed, onMounted } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
+import { adminApi } from "../../api/organization";
+const loading = ref(false);
+const saving = ref(false);
+const users = ref([]);
+const institutions = ref([]);
+const activeTab = ref("teacher");
+const groupedUsers = computed(() => users.value.filter((u) => u.role === activeTab.value));
+const dialogVisible = ref(false);
+const editingId = ref(null);
 const form = ref({
-  role: 'teacher' as 'teacher' | 'institution_admin',
-  institution_id: undefined as number | undefined,
-  username: '',
-  email: '',
-  password: '',
-})
-
-function formatTime(t?: string) {
-  return t ? new Date(t).toLocaleString('zh-CN', { hour12: false }) : '-'
+  role: "teacher",
+  institution_id: void 0,
+  username: "",
+  email: "",
+  password: ""
+});
+function formatTime(t) {
+  return t ? new Date(t).toLocaleString("zh-CN", { hour12: false }) : "-";
 }
-
 async function loadInstitutions() {
-  institutions.value = await adminApi.listInstitutions()
+  institutions.value = await adminApi.listInstitutions();
 }
-
 async function loadUsers() {
-  loading.value = true
+  loading.value = true;
   try {
-    users.value = await adminApi.listUsers()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '加载失败')
+    users.value = await adminApi.listUsers();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "加载失败");
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
-
 function openCreate() {
-  editingId.value = null
+  editingId.value = null;
   form.value = {
     role: activeTab.value,
     institution_id: institutions.value[0]?.id,
-    username: '',
-    email: '',
-    password: '',
-  }
-  dialogVisible.value = true
+    username: "",
+    email: "",
+    password: ""
+  };
+  dialogVisible.value = true;
 }
-
-function openEdit(row: StaffUser) {
-  editingId.value = row.id
+function openEdit(row) {
+  editingId.value = row.id;
   form.value = {
-    role: row.role as 'teacher' | 'institution_admin',
+    role: row.role,
     institution_id: row.institution_id,
     username: row.username,
     email: row.email,
-    password: '',
-  }
-  dialogVisible.value = true
+    password: ""
+  };
+  dialogVisible.value = true;
 }
-
 async function handleSave() {
-  const f = form.value
-  if (!f.institution_id) return ElMessage.warning('请选择机构')
-  if (f.username.trim().length < 3) return ElMessage.warning('用户名至少 3 个字符')
-  if (!f.email.trim()) return ElMessage.warning('请输入邮箱')
-  if (!editingId.value && f.password.length < 6) return ElMessage.warning('密码至少 6 位')
-  if (f.password && f.password.length < 6) return ElMessage.warning('密码至少 6 位')
-  saving.value = true
+  const f = form.value;
+  if (!f.institution_id) return ElMessage.warning("请选择机构");
+  if (f.username.trim().length < 3) return ElMessage.warning("用户名至少 3 个字符");
+  if (!f.email.trim()) return ElMessage.warning("请输入邮箱");
+  if (!editingId.value && f.password.length < 6) return ElMessage.warning("密码至少 6 位");
+  if (f.password && f.password.length < 6) return ElMessage.warning("密码至少 6 位");
+  saving.value = true;
   try {
     if (editingId.value) {
-      // 编辑：密码留空则不传
       await adminApi.updateStaffUser(editingId.value, {
         username: f.username.trim(),
         email: f.email.trim(),
         role: f.role,
         institution_id: f.institution_id,
-        ...(f.password ? { password: f.password } : {}),
-      })
-      ElMessage.success('账号已更新')
+        ...f.password ? { password: f.password } : {}
+      });
+      ElMessage.success("账号已更新");
     } else {
       await adminApi.createStaffUser({
         username: f.username.trim(),
         email: f.email.trim(),
         password: f.password,
         role: f.role,
-        institution_id: f.institution_id,
-      })
-      ElMessage.success('账号创建成功')
+        institution_id: f.institution_id
+      });
+      ElMessage.success("账号创建成功");
     }
-    dialogVisible.value = false
-    await loadUsers()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '保存失败')
+    dialogVisible.value = false;
+    await loadUsers();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "保存失败");
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
-
-async function handleDelete(row: StaffUser) {
+async function handleDelete(row) {
   try {
     await ElMessageBox.confirm(
       `确定删除账号「${row.username}」吗？该账号的班级任教关系会一并解除，此操作不可恢复。`,
-      '删除确认',
-      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
-    )
+      "删除确认",
+      { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消" }
+    );
   } catch {
-    return
+    return;
   }
   try {
-    await adminApi.deleteStaffUser(row.id)
-    ElMessage.success('账号已删除')
-    await loadUsers()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '删除失败')
+    await adminApi.deleteStaffUser(row.id);
+    ElMessage.success("账号已删除");
+    await loadUsers();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "删除失败");
   }
 }
-
 onMounted(async () => {
-  await loadInstitutions()
-  await loadUsers()
-})
+  await loadInstitutions();
+  await loadUsers();
+});
 </script>
 
 <style scoped>

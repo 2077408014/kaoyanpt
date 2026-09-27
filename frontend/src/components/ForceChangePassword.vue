@@ -33,65 +33,59 @@
   </el-dialog>
 </template>
 
-<script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { changePassword } from '../api/auth'
-import { useUserStore } from '../stores/user'
-
-const store = useUserStore()
-const route = useRoute()
-const router = useRouter()
-
-const oldPassword = ref('')
-const newPassword = ref('')
-const confirmPassword = ref('')
-const saving = ref(false)
-
+<script setup>import { ref, computed, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { ElMessage } from "element-plus";
+import { changePassword } from "../api/auth";
+import { useUserStore } from "../stores/user";
+const store = useUserStore();
+const route = useRoute();
+const router = useRouter();
+const oldPassword = ref("");
+const newPassword = ref("");
+const confirmPassword = ref("");
+const saving = ref(false);
 const visible = computed({
-  get: () => store.mustChangePassword && !!store.token && route.path !== '/login',
-  set: () => {},
-})
-
+  get: () => store.mustChangePassword && !!store.token && route.path !== "/login",
+  set: () => {
+  }
+});
 watch(visible, (v) => {
   if (!v) {
-    oldPassword.value = ''
-    newPassword.value = ''
-    confirmPassword.value = ''
+    oldPassword.value = "";
+    newPassword.value = "";
+    confirmPassword.value = "";
   }
-})
-
+});
 async function handleSubmit() {
   if (!oldPassword.value) {
-    ElMessage.warning('请输入原密码')
-    return
+    ElMessage.warning("请输入原密码");
+    return;
   }
   if (newPassword.value.length < 6) {
-    ElMessage.warning('新密码至少 6 位')
-    return
+    ElMessage.warning("新密码至少 6 位");
+    return;
   }
   if (newPassword.value !== confirmPassword.value) {
-    ElMessage.warning('两次输入的新密码不一致')
-    return
+    ElMessage.warning("两次输入的新密码不一致");
+    return;
   }
-  saving.value = true
+  saving.value = true;
   try {
     await changePassword({
       old_password: oldPassword.value,
-      new_password: newPassword.value,
-    })
-    store.clearMustChangePassword()
-    ElMessage.success('密码修改成功')
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '修改失败')
+      new_password: newPassword.value
+    });
+    store.clearMustChangePassword();
+    ElMessage.success("密码修改成功");
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "修改失败");
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
-
 function handleLogout() {
-  store.logout()
-  router.push('/login')
+  store.logout();
+  router.push("/login");
 }
 </script>

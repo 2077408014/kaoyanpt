@@ -62,124 +62,107 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
+<script setup>
+import { Plus } from '@element-plus/icons-vue';
+import ReminderList from '@/views/recitation/ReminderList.vue';import { ref, reactive, computed, onMounted } from "vue";
+import { ElMessage } from "element-plus";
 import {
-  getReminders, createReminder,
-  type RecitationReminder
-} from '../../api/politics'
-import ReminderList from '@/views/recitation/ReminderList.vue'
-
-const activeType = ref('单词')
-const showAddDialog = ref(false)
-const reminders = ref<RecitationReminder[]>([])
-
+  getReminders,
+  createReminder
+} from "../../api/politics";
+const activeType = ref("单词");
+const showAddDialog = ref(false);
+const reminders = ref([]);
 const addForm = reactive({
-  reminder_type: '单词',
-  reminder_time: '08:00',
-  frequency: '每天'
-})
-
-const wordReminders = computed(() =>
-  reminders.value.filter(r => r.reminder_type === '单词')
-)
-
-const politicsReminders = computed(() =>
-  reminders.value.filter(r => r.reminder_type === '政治')
-)
-
+  reminder_type: "单词",
+  reminder_time: "08:00",
+  frequency: "每天"
+});
+const wordReminders = computed(
+  () => reminders.value.filter((r) => r.reminder_type === "单词")
+);
+const politicsReminders = computed(
+  () => reminders.value.filter((r) => r.reminder_type === "政治")
+);
 async function loadReminders() {
   try {
-    reminders.value = await getReminders()
+    reminders.value = await getReminders();
   } catch {
     reminders.value = [
-      { id: 1, user_id: 1, reminder_type: '单词', reminder_time: '08:00', frequency: '每天', enabled: 1, created_at: '2026-07-01', updated_at: null },
-      { id: 2, user_id: 1, reminder_type: '单词', reminder_time: '20:00', frequency: '每天', enabled: 1, created_at: '2026-07-01', updated_at: null },
-      { id: 3, user_id: 1, reminder_type: '政治', reminder_time: '09:00', frequency: '工作日', enabled: 1, created_at: '2026-07-01', updated_at: null },
-    ]
+      { id: 1, user_id: 1, reminder_type: "单词", reminder_time: "08:00", frequency: "每天", enabled: 1, created_at: "2026-07-01", updated_at: null },
+      { id: 2, user_id: 1, reminder_type: "单词", reminder_time: "20:00", frequency: "每天", enabled: 1, created_at: "2026-07-01", updated_at: null },
+      { id: 3, user_id: 1, reminder_type: "政治", reminder_time: "09:00", frequency: "工作日", enabled: 1, created_at: "2026-07-01", updated_at: null }
+    ];
   }
 }
-
 async function handleAdd() {
   if (!addForm.reminder_time) {
-    ElMessage.warning('请选择提醒时间')
-    return
+    ElMessage.warning("请选择提醒时间");
+    return;
   }
   try {
     await createReminder({
       reminder_type: addForm.reminder_type,
       reminder_time: addForm.reminder_time,
       frequency: addForm.frequency
-    })
-    ElMessage.success('添加成功')
-    showAddDialog.value = false
-    loadReminders()
+    });
+    ElMessage.success("添加成功");
+    showAddDialog.value = false;
+    loadReminders();
   } catch {
-    ElMessage.success('添加成功')
-    showAddDialog.value = false
-    loadReminders()
+    ElMessage.success("添加成功");
+    showAddDialog.value = false;
+    loadReminders();
   }
 }
-
 async function requestNotification() {
-  if (!('Notification' in window)) {
-    ElMessage.warning('当前浏览器不支持通知功能')
-    return
+  if (!("Notification" in window)) {
+    ElMessage.warning("当前浏览器不支持通知功能");
+    return;
   }
-  const permission = await Notification.requestPermission()
-  if (permission === 'granted') {
-    ElMessage.success('通知权限已开启')
-    startNotificationCheck()
+  const permission = await Notification.requestPermission();
+  if (permission === "granted") {
+    ElMessage.success("通知权限已开启");
+    startNotificationCheck();
   } else {
-    ElMessage.warning('您拒绝了通知权限')
+    ElMessage.warning("您拒绝了通知权限");
   }
 }
-
-let notificationTimer: number | null = null
-
+let notificationTimer = null;
 function startNotificationCheck() {
-  if (notificationTimer) return
+  if (notificationTimer) return;
   notificationTimer = window.setInterval(() => {
-    const now = new Date()
-    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
-    const dayOfWeek = now.getDay()
-    const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
-
-    reminders.value.forEach(reminder => {
-      if (reminder.enabled !== 1) return
-      if (reminder.reminder_time !== currentTime + ':00' && reminder.reminder_time !== currentTime) return
-
-      let shouldNotify = false
-      if (reminder.frequency === '每天') shouldNotify = true
-      else if (reminder.frequency === '工作日') shouldNotify = isWeekday
-      else if (reminder.frequency === '周末') shouldNotify = isWeekend
-
+    const now = /* @__PURE__ */ new Date();
+    const currentTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    const dayOfWeek = now.getDay();
+    const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5;
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+    reminders.value.forEach((reminder) => {
+      if (reminder.enabled !== 1) return;
+      if (reminder.reminder_time !== currentTime + ":00" && reminder.reminder_time !== currentTime) return;
+      let shouldNotify = false;
+      if (reminder.frequency === "每天") shouldNotify = true;
+      else if (reminder.frequency === "工作日") shouldNotify = isWeekday;
+      else if (reminder.frequency === "周末") shouldNotify = isWeekend;
       if (shouldNotify) {
-        showBrowserNotification(reminder)
+        showBrowserNotification(reminder);
       }
-    })
-  }, 60000)
+    });
+  }, 6e4);
 }
-
-function showBrowserNotification(reminder: RecitationReminder) {
-  if (Notification.permission === 'granted') {
-    const title = reminder.reminder_type === '单词' ? '单词背诵提醒' : '政治背诵提醒'
-    const body = reminder.reminder_type === '单词'
-      ? '该背单词啦！坚持学习，不断进步！'
-      : '该背政治啦！巩固知识点，提高分数！'
-    new Notification(title, { body, icon: '/favicon.ico' })
+function showBrowserNotification(reminder) {
+  if (Notification.permission === "granted") {
+    const title = reminder.reminder_type === "单词" ? "单词背诵提醒" : "政治背诵提醒";
+    const body = reminder.reminder_type === "单词" ? "该背单词啦！坚持学习，不断进步！" : "该背政治啦！巩固知识点，提高分数！";
+    new Notification(title, { body, icon: "/favicon.ico" });
   }
 }
-
 onMounted(() => {
-  loadReminders()
-  if ('Notification' in window && Notification.permission === 'granted') {
-    startNotificationCheck()
+  loadReminders();
+  if ("Notification" in window && Notification.permission === "granted") {
+    startNotificationCheck();
   }
-})
+});
 </script>
 
 <style scoped>

@@ -179,268 +179,237 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Picture, VideoPlay } from '@element-plus/icons-vue'
+<script setup>
+import { Plus, Picture, VideoPlay } from '@element-plus/icons-vue';import { ref, reactive, onMounted, computed } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
 import {
-  getRecitations, createRecitation, updateRecitation, deleteRecitation,
-  uploadPoliticsImage, recognizePoliticsImage, reviewRecitation,
-  type PoliticsRecitation
-} from '../../api/politics'
-import { useSpeech } from '@/composables/useSpeech'
-
-const { speak: speakContent } = useSpeech()
-
-const recitations = ref<PoliticsRecitation[]>([])
-const filterCategory = ref('')
-const filterLevel = ref('')
-const showAddDialog = ref(false)
-const showEditDialog = ref(false)
-const showDetailDialog = ref(false)
-const selectedRecitation = ref<PoliticsRecitation | null>(null)
-const recognizing = ref(false)
-
-interface ContentBlock {
-  type: 'heading' | 'list' | 'highlight' | 'paragraph'
-  content?: string
-  items?: string[]
-}
-
-const formattedContentBlocks = computed<ContentBlock[]>(() => {
-  if (!selectedRecitation.value?.content) return []
-  
-  const content = selectedRecitation.value.content
-  const lines = content.split('\n')
-  const blocks: ContentBlock[] = []
-  
-  let currentList: string[] = []
-  let currentParagraph = ''
-  
+  getRecitations,
+  createRecitation,
+  updateRecitation,
+  deleteRecitation,
+  uploadPoliticsImage,
+  recognizePoliticsImage,
+  reviewRecitation
+} from "../../api/politics";
+import { useSpeech } from "@/composables/useSpeech";
+const { speak: speakContent } = useSpeech();
+const recitations = ref([]);
+const filterCategory = ref("");
+const filterLevel = ref("");
+const showAddDialog = ref(false);
+const showEditDialog = ref(false);
+const showDetailDialog = ref(false);
+const selectedRecitation = ref(null);
+const recognizing = ref(false);
+const formattedContentBlocks = computed(() => {
+  if (!selectedRecitation.value?.content) return [];
+  const content = selectedRecitation.value.content;
+  const lines = content.split("\n");
+  const blocks = [];
+  let currentList = [];
+  let currentParagraph = "";
   for (const line of lines) {
     if (!line.trim()) {
       if (currentList.length > 0) {
-        blocks.push({ type: 'list', items: [...currentList] })
-        currentList = []
+        blocks.push({ type: "list", items: [...currentList] });
+        currentList = [];
       }
       if (currentParagraph.trim()) {
-        blocks.push({ type: 'paragraph', content: currentParagraph.trim() })
-        currentParagraph = ''
+        blocks.push({ type: "paragraph", content: currentParagraph.trim() });
+        currentParagraph = "";
       }
-      continue
+      continue;
     }
-    
-    if (line.startsWith('  ') || /^\d+[.．、)]/.test(line) || /^[①②③④⑤⑥⑦⑧⑨⑩]/.test(line)) {
+    if (line.startsWith("  ") || /^\d+[.．、)]/.test(line) || /^[①②③④⑤⑥⑦⑧⑨⑩]/.test(line)) {
       if (currentParagraph.trim()) {
-        blocks.push({ type: 'paragraph', content: currentParagraph.trim() })
-        currentParagraph = ''
+        blocks.push({ type: "paragraph", content: currentParagraph.trim() });
+        currentParagraph = "";
       }
-      currentList.push(line.trim())
-      continue
+      currentList.push(line.trim());
+      continue;
     }
-    
-    if (line.startsWith('◆')) {
+    if (line.startsWith("◆")) {
       if (currentList.length > 0) {
-        blocks.push({ type: 'list', items: [...currentList] })
-        currentList = []
+        blocks.push({ type: "list", items: [...currentList] });
+        currentList = [];
       }
       if (currentParagraph.trim()) {
-        blocks.push({ type: 'paragraph', content: currentParagraph.trim() })
-        currentParagraph = ''
+        blocks.push({ type: "paragraph", content: currentParagraph.trim() });
+        currentParagraph = "";
       }
-      blocks.push({ type: 'highlight', content: line.trim() })
-      continue
+      blocks.push({ type: "highlight", content: line.trim() });
+      continue;
     }
-    
     if (/^[>【\[（]/.test(line) || line.length < 30) {
       if (currentList.length > 0) {
-        blocks.push({ type: 'list', items: [...currentList] })
-        currentList = []
+        blocks.push({ type: "list", items: [...currentList] });
+        currentList = [];
       }
       if (currentParagraph.trim()) {
-        blocks.push({ type: 'paragraph', content: currentParagraph.trim() })
-        currentParagraph = ''
+        blocks.push({ type: "paragraph", content: currentParagraph.trim() });
+        currentParagraph = "";
       }
-      blocks.push({ type: 'heading', content: line.trim() })
-      continue
+      blocks.push({ type: "heading", content: line.trim() });
+      continue;
     }
-    
     if (currentList.length > 0) {
-      blocks.push({ type: 'list', items: [...currentList] })
-      currentList = []
+      blocks.push({ type: "list", items: [...currentList] });
+      currentList = [];
     }
-    currentParagraph += (currentParagraph ? ' ' : '') + line.trim()
+    currentParagraph += (currentParagraph ? " " : "") + line.trim();
   }
-  
   if (currentList.length > 0) {
-    blocks.push({ type: 'list', items: [...currentList] })
+    blocks.push({ type: "list", items: [...currentList] });
   }
   if (currentParagraph.trim()) {
-    blocks.push({ type: 'paragraph', content: currentParagraph.trim() })
+    blocks.push({ type: "paragraph", content: currentParagraph.trim() });
   }
-  
-  return blocks
-})
-
+  return blocks;
+});
 const addForm = reactive({
-  title: '',
-  category: '马原',
-  content: '',
-  image_path: ''
-})
-
+  title: "",
+  category: "马原",
+  content: "",
+  image_path: ""
+});
 const editForm = reactive({
   id: 0,
-  title: '',
-  category: '马原',
-  content: '',
-  mastery_level: '生疏'
-})
-
-function getMasteryTagType(level: string) {
+  title: "",
+  category: "马原",
+  content: "",
+  mastery_level: "生疏"
+});
+function getMasteryTagType(level) {
   switch (level) {
-    case '生疏': return 'danger'
-    case '熟悉': return 'warning'
-    case '掌握': return 'success'
-    default: return 'info'
+    case "生疏":
+      return "danger";
+    case "熟悉":
+      return "warning";
+    case "掌握":
+      return "success";
+    default:
+      return "info";
   }
 }
-
 async function loadRecitations() {
   try {
-    const params: Record<string, string> = {}
-    if (filterCategory.value) params.category = filterCategory.value
-    if (filterLevel.value) params.mastery_level = filterLevel.value
-    recitations.value = await getRecitations(params)
+    const params = {};
+    if (filterCategory.value) params.category = filterCategory.value;
+    if (filterLevel.value) params.mastery_level = filterLevel.value;
+    recitations.value = await getRecitations(params);
   } catch {
     recitations.value = [
-      { id: 1, user_id: 1, title: '唯物辩证法的三大规律', category: '马原', content: '对立统一规律、质量互变规律、否定之否定规律...', image_path: null, mastery_level: '熟悉', review_count: 3, next_review_date: '2026-07-12', last_review_date: '2026-07-10', created_at: '2026-07-01', updated_at: '2026-07-10' },
-      { id: 2, user_id: 1, title: '中国特色社会主义进入新时代', category: '毛中特', content: '新时代的内涵和意义...', image_path: null, mastery_level: '生疏', review_count: 1, next_review_date: '2026-07-11', last_review_date: '2026-07-08', created_at: '2026-07-05', updated_at: '2026-07-08' },
-    ]
+      { id: 1, user_id: 1, title: "唯物辩证法的三大规律", category: "马原", content: "对立统一规律、质量互变规律、否定之否定规律...", image_path: null, mastery_level: "熟悉", review_count: 3, next_review_date: "2026-07-12", last_review_date: "2026-07-10", created_at: "2026-07-01", updated_at: "2026-07-10" },
+      { id: 2, user_id: 1, title: "中国特色社会主义进入新时代", category: "毛中特", content: "新时代的内涵和意义...", image_path: null, mastery_level: "生疏", review_count: 1, next_review_date: "2026-07-11", last_review_date: "2026-07-08", created_at: "2026-07-05", updated_at: "2026-07-08" }
+    ];
   }
 }
-
-async function handleImageUpload(file: File): Promise<boolean> {
+async function handleImageUpload(file) {
   try {
-    const result = await uploadPoliticsImage(file)
-    addForm.image_path = result.image_path
-    ElMessage.success('图片上传成功')
+    const result = await uploadPoliticsImage(file);
+    addForm.image_path = result.image_path;
+    ElMessage.success("图片上传成功");
   } catch {
-    ElMessage.error('图片上传失败')
+    ElMessage.error("图片上传失败");
   }
-  return false
+  return false;
 }
-
-async function handlePaste(event: ClipboardEvent) {
-  const items = event.clipboardData?.items
-  if (!items) return
+async function handlePaste(event) {
+  const items = event.clipboardData?.items;
+  if (!items) return;
   for (const item of items) {
-    if (item.type.startsWith('image/')) {
-      event.preventDefault()
-      const file = item.getAsFile()
+    if (item.type.startsWith("image/")) {
+      event.preventDefault();
+      const file = item.getAsFile();
       if (file) {
-        await handleImageUpload(file)
-        return
+        await handleImageUpload(file);
+        return;
       }
     }
   }
-  const files = event.clipboardData?.files
+  const files = event.clipboardData?.files;
   if (files && files.length > 0) {
-    const imageFile = Array.from(files).find(f => f.type.startsWith('image/'))
+    const imageFile = Array.from(files).find((f) => f.type.startsWith("image/"));
     if (imageFile) {
-      event.preventDefault()
-      await handleImageUpload(imageFile)
+      event.preventDefault();
+      await handleImageUpload(imageFile);
     }
   }
 }
-
 function removeImage() {
-  addForm.image_path = ''
+  addForm.image_path = "";
 }
-
-function formatRecognizedText(text: string): string {
-  if (!text) return ''
-  
-  let formatted = text
-    .replace(/\r\n/g, '\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
-  
-  return formatted
+function formatRecognizedText(text) {
+  if (!text) return "";
+  let formatted = text.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").replace(/\s{2,}/g, " ").trim();
+  return formatted;
 }
-
 async function handleRecognize() {
   if (!addForm.image_path) {
-    ElMessage.warning('请先上传图片')
-    return
+    ElMessage.warning("请先上传图片");
+    return;
   }
-  recognizing.value = true
+  recognizing.value = true;
   try {
-    const result = await recognizePoliticsImage(addForm.image_path)
+    const result = await recognizePoliticsImage(addForm.image_path);
     if (result.content) {
-      const formatted = formatRecognizedText(result.content)
-      addForm.content = formatted
-      ElMessage.success(`识别成功，置信度: ${(result.confidence * 100).toFixed(0)}%`)
+      const formatted = formatRecognizedText(result.content);
+      addForm.content = formatted;
+      ElMessage.success(`识别成功，置信度: ${(result.confidence * 100).toFixed(0)}%`);
     } else {
-      ElMessage.warning('未识别到文字内容')
+      ElMessage.warning("未识别到文字内容");
     }
-  } catch (error: any) {
-    const message = error.response?.data?.detail || error.message || '识别失败'
-    ElMessage.error(`识别失败: ${message}`)
+  } catch (error) {
+    const message = error.response?.data?.detail || error.message || "识别失败";
+    ElMessage.error(`识别失败: ${message}`);
   } finally {
-    recognizing.value = false
+    recognizing.value = false;
   }
 }
-
 async function handleAdd() {
   if (!addForm.title.trim()) {
-    ElMessage.warning('请输入标题')
-    return
+    ElMessage.warning("请输入标题");
+    return;
   }
   if (!addForm.content.trim()) {
-    ElMessage.warning('请输入背诵内容')
-    return
+    ElMessage.warning("请输入背诵内容");
+    return;
   }
   try {
     await createRecitation({
       title: addForm.title,
       category: addForm.category,
       content: addForm.content,
-      image_path: addForm.image_path || undefined
-    })
-    ElMessage.success('添加成功')
-    showAddDialog.value = false
-    resetAddForm()
-    loadRecitations()
-  } catch (error: any) {
-    const message = error.response?.data?.detail || error.message || '添加失败'
-    console.error('添加政治背诵内容失败:', error)
-    ElMessage.error(`添加失败: ${message}`)
+      image_path: addForm.image_path || void 0
+    });
+    ElMessage.success("添加成功");
+    showAddDialog.value = false;
+    resetAddForm();
+    loadRecitations();
+  } catch (error) {
+    const message = error.response?.data?.detail || error.message || "添加失败";
+    console.error("添加政治背诵内容失败:", error);
+    ElMessage.error(`添加失败: ${message}`);
   }
 }
-
 function resetAddForm() {
-  addForm.title = ''
-  addForm.category = '马原'
-  addForm.content = ''
-  addForm.image_path = ''
+  addForm.title = "";
+  addForm.category = "马原";
+  addForm.content = "";
+  addForm.image_path = "";
 }
-
-function viewRecitation(item: PoliticsRecitation) {
-  selectedRecitation.value = item
-  showDetailDialog.value = true
+function viewRecitation(item) {
+  selectedRecitation.value = item;
+  showDetailDialog.value = true;
 }
-
-function editRecitation(item: PoliticsRecitation) {
-  editForm.id = item.id
-  editForm.title = item.title
-  editForm.category = item.category
-  editForm.content = item.content
-  editForm.mastery_level = item.mastery_level
-  showEditDialog.value = true
+function editRecitation(item) {
+  editForm.id = item.id;
+  editForm.title = item.title;
+  editForm.category = item.category;
+  editForm.content = item.content;
+  editForm.mastery_level = item.mastery_level;
+  showEditDialog.value = true;
 }
-
 async function handleEdit() {
   try {
     await updateRecitation(editForm.id, {
@@ -448,41 +417,37 @@ async function handleEdit() {
       category: editForm.category,
       content: editForm.content,
       mastery_level: editForm.mastery_level
-    })
-    ElMessage.success('保存成功')
-    showEditDialog.value = false
-    loadRecitations()
+    });
+    ElMessage.success("保存成功");
+    showEditDialog.value = false;
+    loadRecitations();
   } catch {
-    ElMessage.error('保存失败')
+    ElMessage.error("保存失败");
   }
 }
-
-async function handleDelete(item: PoliticsRecitation) {
+async function handleDelete(item) {
   try {
-    await ElMessageBox.confirm('确定要删除这个背诵内容吗？', '提示', { type: 'warning' })
-    await deleteRecitation(item.id)
-    ElMessage.success('删除成功')
-    loadRecitations()
+    await ElMessageBox.confirm("确定要删除这个背诵内容吗？", "提示", { type: "warning" });
+    await deleteRecitation(item.id);
+    ElMessage.success("删除成功");
+    loadRecitations();
   } catch {
-    // 用户取消
   }
 }
-
-async function markReview(result: string) {
-  if (!selectedRecitation.value) return
+async function markReview(result) {
+  if (!selectedRecitation.value) return;
   try {
-    const updated = await reviewRecitation(selectedRecitation.value.id, result)
-    selectedRecitation.value.mastery_level = updated.mastery_level
-    selectedRecitation.value.next_review_date = updated.next_review_date
-    selectedRecitation.value.review_count = updated.review_count
-    ElMessage.success(`已标记为：${result}`)
-    loadRecitations()
+    const updated = await reviewRecitation(selectedRecitation.value.id, result);
+    selectedRecitation.value.mastery_level = updated.mastery_level;
+    selectedRecitation.value.next_review_date = updated.next_review_date;
+    selectedRecitation.value.review_count = updated.review_count;
+    ElMessage.success(`已标记为：${result}`);
+    loadRecitations();
   } catch {
-    ElMessage.success(`已标记为：${result}`)
+    ElMessage.success(`已标记为：${result}`);
   }
 }
-
-onMounted(loadRecitations)
+onMounted(loadRecitations);
 </script>
 
 <style scoped>

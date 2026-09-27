@@ -107,6 +107,7 @@ class AssignmentSubmission(Base):
     assignment_id = Column(Integer, ForeignKey("assignments.id", ondelete="CASCADE"), nullable=False, index=True)
     student_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     content = Column(Text, nullable=False, default="")
+    images = Column(Text, nullable=False, default="[]")  # JSON 字符串数组，相对路径
     submitted_at = Column(DateTime(timezone=True), server_default=func.now())
     score = Column(Integer, nullable=True)
     feedback = Column(Text, nullable=True)

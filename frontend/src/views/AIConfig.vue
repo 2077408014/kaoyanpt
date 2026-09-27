@@ -2,7 +2,7 @@
   <div class="ai-config-page">
     <div class="page-header">
       <h2>AI配置</h2>
-      <el-button type="primary" @click="goBack">返回AI问答</el-button>
+      <el-button type="primary" @click="goBack">{{ backLabel }}</el-button>
     </div>
 
     <!-- 已保存的配置列表 -->
@@ -161,240 +161,220 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Check, Delete, Edit, Plus, InfoFilled, CircleClose } from '@element-plus/icons-vue'
+<script setup>
+import { Check, Delete, Edit, Plus, InfoFilled, CircleClose } from '@element-plus/icons-vue';import { ref, reactive, onMounted } from "vue";
+import { useRouter, useRoute } from "vue-router";
+import { ElMessage, ElMessageBox } from "element-plus";
 import {
-  listAIConfigs, createAIConfig, updateAIConfig, deleteAIConfig, switchAIConfig, getAIConfig,
-  type AIConfigItem, type AIConfigCreateData
-} from '../api/ai_config'
-import { getMe, type User } from '../api/auth'
-
-const router = useRouter()
-
-const configs = ref<AIConfigItem[]>([])
-const activeConfigId = ref<number | null>(null)
-const saving = ref(false)
-const updating = ref(false)
-const switchingId = ref<number | null>(null)
-const deletingId = ref<number | null>(null)
-const editDialogVisible = ref(false)
-const editingId = ref<number | null>(null)
-
+  listAIConfigs,
+  createAIConfig,
+  updateAIConfig,
+  deleteAIConfig,
+  switchAIConfig,
+  getAIConfig
+} from "../api/ai_config";
+import { getMe } from "../api/auth";
+const router = useRouter();
+const route = useRoute();
+const backLabel = route.path.startsWith("/teacher") || route.path.startsWith("/institution") ? "返回AI助手" : "返回AI问答";
+const configs = ref([]);
+const activeConfigId = ref(null);
+const saving = ref(false);
+const updating = ref(false);
+const switchingId = ref(null);
+const deletingId = ref(null);
+const editDialogVisible = ref(false);
+const editingId = ref(null);
 const form = reactive({
-  name: '',
-  provider: 'deepseek',
-  apiKey: '',
-  baseUrl: '',
-  model: ''
-})
-
+  name: "",
+  provider: "deepseek",
+  apiKey: "",
+  baseUrl: "",
+  model: ""
+});
 const editForm = reactive({
-  name: '',
-  provider: 'deepseek',
-  apiKey: '',
-  baseUrl: '',
-  model: ''
-})
-
-const providerDefaults: Record<string, { baseUrl: string; model: string; label: string; tagType: string }> = {
+  name: "",
+  provider: "deepseek",
+  apiKey: "",
+  baseUrl: "",
+  model: ""
+});
+const providerDefaults = {
   deepseek: {
-    baseUrl: 'https://api.deepseek.com/v1',
-    model: 'deepseek-v4-pro',
-    label: 'DeepSeek',
-    tagType: 'primary'
+    baseUrl: "https://api.deepseek.com/v1",
+    model: "deepseek-v4-pro",
+    label: "DeepSeek",
+    tagType: "primary"
   },
   zhipu: {
-    baseUrl: 'https://open.bigmodel.cn/api/paas/v4',
-    model: 'glm-4',
-    label: '智谱AI',
-    tagType: 'warning'
+    baseUrl: "https://open.bigmodel.cn/api/paas/v4",
+    model: "glm-4",
+    label: "智谱AI",
+    tagType: "warning"
   },
   openai: {
-    baseUrl: 'https://api.openai.com/v1',
-    model: 'gpt-3.5-turbo',
-    label: 'OpenAI',
-    tagType: 'success'
+    baseUrl: "https://api.openai.com/v1",
+    model: "gpt-3.5-turbo",
+    label: "OpenAI",
+    tagType: "success"
   },
   custom: {
-    baseUrl: '',
-    model: '',
-    label: '自定义',
-    tagType: 'info'
+    baseUrl: "",
+    model: "",
+    label: "自定义",
+    tagType: "info"
   }
+};
+function getProviderLabel(provider) {
+  return providerDefaults[provider]?.label || provider;
 }
-
-function getProviderLabel(provider: string) {
-  return providerDefaults[provider]?.label || provider
+function getProviderTagType(provider) {
+  return providerDefaults[provider]?.tagType || "info";
 }
-
-function getProviderTagType(provider: string) {
-  return providerDefaults[provider]?.tagType || 'info'
+function formatDate(iso) {
+  if (!iso) return "-";
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-
-function formatDate(iso: string) {
-  if (!iso) return '-'
-  const d = new Date(iso)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 function onProviderChange() {
-  const defaults = providerDefaults[form.provider]
+  const defaults = providerDefaults[form.provider];
   if (defaults) {
-    form.baseUrl = defaults.baseUrl
-    form.model = defaults.model
+    form.baseUrl = defaults.baseUrl;
+    form.model = defaults.model;
   }
 }
-
 function onEditProviderChange() {
-  const defaults = providerDefaults[editForm.provider]
+  const defaults = providerDefaults[editForm.provider];
   if (defaults) {
-    editForm.baseUrl = defaults.baseUrl
-    editForm.model = defaults.model
+    editForm.baseUrl = defaults.baseUrl;
+    editForm.model = defaults.model;
   }
 }
-
 function resetForm() {
-  form.name = ''
-  form.provider = 'deepseek'
-  form.apiKey = ''
-  form.baseUrl = providerDefaults.deepseek.baseUrl
-  form.model = providerDefaults.deepseek.model
+  form.name = "";
+  form.provider = "deepseek";
+  form.apiKey = "";
+  form.baseUrl = providerDefaults.deepseek.baseUrl;
+  form.model = providerDefaults.deepseek.model;
 }
-
 async function loadData() {
   try {
-    const user: User = await getMe()
-    activeConfigId.value = user.active_ai_config_id || null
+    const user = await getMe();
+    activeConfigId.value = user.active_ai_config_id || null;
   } catch {
-    // ignore
   }
   try {
-    configs.value = await listAIConfigs()
+    configs.value = await listAIConfigs();
   } catch {
-    configs.value = []
+    configs.value = [];
   }
 }
-
 async function handleSave() {
   if (!form.name.trim()) {
-    ElMessage.warning('请输入配置名称')
-    return
+    ElMessage.warning("请输入配置名称");
+    return;
   }
   if (!form.apiKey.trim()) {
-    ElMessage.warning('请输入API Key')
-    return
+    ElMessage.warning("请输入API Key");
+    return;
   }
   if (!form.baseUrl.trim()) {
-    ElMessage.warning('请输入API Base URL')
-    return
+    ElMessage.warning("请输入API Base URL");
+    return;
   }
   if (!form.model.trim()) {
-    ElMessage.warning('请输入模型名称')
-    return
+    ElMessage.warning("请输入模型名称");
+    return;
   }
-
-  saving.value = true
+  saving.value = true;
   try {
-    const data: AIConfigCreateData = {
+    const data = {
       name: form.name.trim(),
       provider: form.provider,
       api_key: form.apiKey.trim(),
       base_url: form.baseUrl.trim(),
       model: form.model.trim()
-    }
-    await createAIConfig(data)
-    ElMessage.success('配置保存成功')
-    resetForm()
-    await loadData()
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.detail || '保存失败')
+    };
+    await createAIConfig(data);
+    ElMessage.success("配置保存成功");
+    resetForm();
+    await loadData();
+  } catch (error) {
+    ElMessage.error(error.response?.data?.detail || "保存失败");
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
-
-async function handleSwitch(configId: number) {
-  switchingId.value = configId
+async function handleSwitch(configId) {
+  switchingId.value = configId;
   try {
-    await switchAIConfig(configId)
-    activeConfigId.value = configId
-    ElMessage.success('已切换至该配置')
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.detail || '切换失败')
+    await switchAIConfig(configId);
+    activeConfigId.value = configId;
+    ElMessage.success("已切换至该配置");
+  } catch (error) {
+    ElMessage.error(error.response?.data?.detail || "切换失败");
   } finally {
-    switchingId.value = null
+    switchingId.value = null;
   }
 }
-
 async function handleDeactivate() {
   try {
     await ElMessageBox.confirm(
-      '确定要停用当前配置吗？停用后将使用系统默认配置（环境变量）。',
-      '停用确认',
-      { type: 'warning', confirmButtonText: '停用', cancelButtonText: '取消' }
-    )
+      "确定要停用当前配置吗？停用后将使用系统默认配置（环境变量）。",
+      "停用确认",
+      { type: "warning", confirmButtonText: "停用", cancelButtonText: "取消" }
+    );
   } catch {
-    return
+    return;
   }
-
-  switchingId.value = activeConfigId.value
+  switchingId.value = activeConfigId.value;
   try {
-    await switchAIConfig(null)
-    activeConfigId.value = null
-    ElMessage.success('已停用，将使用系统默认配置')
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.detail || '停用失败')
+    await switchAIConfig(null);
+    activeConfigId.value = null;
+    ElMessage.success("已停用，将使用系统默认配置");
+  } catch (error) {
+    ElMessage.error(error.response?.data?.detail || "停用失败");
   } finally {
-    switchingId.value = null
+    switchingId.value = null;
   }
 }
-
-async function handleEdit(config: AIConfigItem) {
-  editingId.value = config.id
-  editForm.name = config.name
-  editForm.provider = config.provider
-  editForm.apiKey = ''
-  editForm.baseUrl = ''
-  editForm.model = config.model
-
-  editDialogVisible.value = true
-
-  // 加载完整信息填充表单（含 api_key、base_url）
+async function handleEdit(config) {
+  editingId.value = config.id;
+  editForm.name = config.name;
+  editForm.provider = config.provider;
+  editForm.apiKey = "";
+  editForm.baseUrl = "";
+  editForm.model = config.model;
+  editDialogVisible.value = true;
   try {
-    const detail = await getAIConfig(config.id)
-    editForm.apiKey = detail.api_key || ''
-    editForm.baseUrl = detail.base_url || ''
-    editForm.model = detail.model || config.model
-    editForm.provider = detail.provider || config.provider
-    editForm.name = detail.name || config.name
+    const detail = await getAIConfig(config.id);
+    editForm.apiKey = detail.api_key || "";
+    editForm.baseUrl = detail.base_url || "";
+    editForm.model = detail.model || config.model;
+    editForm.provider = detail.provider || config.provider;
+    editForm.name = detail.name || config.name;
   } catch {
-    // 加载失败则保持已有信息
   }
 }
-
 async function handleUpdate() {
-  if (!editingId.value) return
+  if (!editingId.value) return;
   if (!editForm.name.trim()) {
-    ElMessage.warning('请输入配置名称')
-    return
+    ElMessage.warning("请输入配置名称");
+    return;
   }
   if (!editForm.apiKey.trim()) {
-    ElMessage.warning('请输入API Key')
-    return
+    ElMessage.warning("请输入API Key");
+    return;
   }
   if (!editForm.baseUrl.trim()) {
-    ElMessage.warning('请输入API Base URL')
-    return
+    ElMessage.warning("请输入API Base URL");
+    return;
   }
   if (!editForm.model.trim()) {
-    ElMessage.warning('请输入模型名称')
-    return
+    ElMessage.warning("请输入模型名称");
+    return;
   }
-
-  updating.value = true
+  updating.value = true;
   try {
     await updateAIConfig(editingId.value, {
       name: editForm.name.trim(),
@@ -402,51 +382,53 @@ async function handleUpdate() {
       api_key: editForm.apiKey.trim(),
       base_url: editForm.baseUrl.trim(),
       model: editForm.model.trim()
-    })
-    ElMessage.success('配置更新成功')
-    editDialogVisible.value = false
-    await loadData()
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.detail || '更新失败')
+    });
+    ElMessage.success("配置更新成功");
+    editDialogVisible.value = false;
+    await loadData();
+  } catch (error) {
+    ElMessage.error(error.response?.data?.detail || "更新失败");
   } finally {
-    updating.value = false
+    updating.value = false;
   }
 }
-
-async function handleDelete(config: AIConfigItem) {
+async function handleDelete(config) {
   try {
     await ElMessageBox.confirm(
       `确定删除配置「${config.name}」吗？删除后无法恢复。`,
-      '删除确认',
-      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消', confirmButtonClass: 'el-button--danger' }
-    )
+      "删除确认",
+      { type: "warning", confirmButtonText: "删除", cancelButtonText: "取消", confirmButtonClass: "el-button--danger" }
+    );
   } catch {
-    return
+    return;
   }
-
-  deletingId.value = config.id
+  deletingId.value = config.id;
   try {
-    await deleteAIConfig(config.id)
+    await deleteAIConfig(config.id);
     if (activeConfigId.value === config.id) {
-      activeConfigId.value = null
+      activeConfigId.value = null;
     }
-    ElMessage.success('已删除')
-    await loadData()
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.detail || '删除失败')
+    ElMessage.success("已删除");
+    await loadData();
+  } catch (error) {
+    ElMessage.error(error.response?.data?.detail || "删除失败");
   } finally {
-    deletingId.value = null
+    deletingId.value = null;
   }
 }
-
 function goBack() {
-  router.push('/dashboard/ai')
+  if (route.path.startsWith("/teacher")) {
+    router.push("/teacher/assistant");
+  } else if (route.path.startsWith("/institution")) {
+    router.push("/institution/assistant");
+  } else {
+    router.push("/dashboard/ai");
+  }
 }
-
 onMounted(() => {
-  resetForm()
-  loadData()
-})
+  resetForm();
+  loadData();
+});
 </script>
 
 <style scoped>

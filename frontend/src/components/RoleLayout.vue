@@ -28,44 +28,37 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted, watch, type Component } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { useUserStore } from '../stores/user'
-import { getMe } from '../api/auth'
-
-interface MenuItem {
-  index: string
-  label: string
-  icon: Component
-}
-
-defineProps<{ title: string; items: MenuItem[] }>()
-
-const route = useRoute()
-const router = useRouter()
-const store = useUserStore()
-const username = ref(store.user?.username || '')
-const activeMenu = ref(route.path)
-
-watch(() => route.path, (p) => { activeMenu.value = p }, { immediate: true })
-
+<script setup>import { ref, onMounted, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { ElMessage } from "element-plus";
+import { useUserStore } from "../stores/user";
+import { getMe } from "../api/auth";
+defineProps({
+  title: { type: String, required: true },
+  items: { type: Array, required: true }
+});
+const route = useRoute();
+const router = useRouter();
+const store = useUserStore();
+const username = ref(store.user?.username || "");
+const activeMenu = ref(route.path);
+watch(() => route.path, (p) => {
+  activeMenu.value = p;
+}, { immediate: true });
 onMounted(async () => {
   try {
-    const me = await getMe()
-    store.setUser(me)
-    username.value = me.username
+    const me = await getMe();
+    store.setUser(me);
+    username.value = me.username;
   } catch {
-    store.logout()
-    router.push('/login')
+    store.logout();
+    router.push("/login");
   }
-})
-
+});
 function handleLogout() {
-  store.logout()
-  ElMessage.success('已退出登录')
-  router.push('/login')
+  store.logout();
+  ElMessage.success("已退出登录");
+  router.push("/login");
 }
 </script>
 

@@ -17,30 +17,26 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import OrgStudentTable from '../../components/OrgStudentTable.vue'
-import { institutionApi, type StudentSummary } from '../../api/organization'
-
-const route = useRoute()
-const router = useRouter()
-const classId = Number(route.params.classId)
-
-const loading = ref(false)
-const students = ref<StudentSummary[]>([])
-
+<script setup>
+import OrgStudentTable from '../../components/OrgStudentTable.vue';import { ref, onMounted } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { ElMessage } from "element-plus";
+import { institutionApi } from "../../api/organization";
+const route = useRoute();
+const router = useRouter();
+const classId = Number(route.params.classId);
+const loading = ref(false);
+const students = ref([]);
 onMounted(async () => {
-  loading.value = true
+  loading.value = true;
   try {
-    students.value = await institutionApi.classStudents(classId)
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '加载失败')
+    students.value = await institutionApi.classStudents(classId);
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "加载失败");
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-})
+});
 </script>
 
 <style scoped>

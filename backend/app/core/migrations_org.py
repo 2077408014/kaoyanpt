@@ -26,6 +26,9 @@ _PENDING_COLUMNS = {
     "assignments": [
         ("images", "TEXT NOT NULL DEFAULT '[]'"),
     ],
+    "assignment_submissions": [
+        ("images", "TEXT NOT NULL DEFAULT '[]'"),
+    ],
 }
 
 

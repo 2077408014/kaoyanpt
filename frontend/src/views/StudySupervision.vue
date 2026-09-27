@@ -77,242 +77,207 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { ElMessage } from 'element-plus'
-import { VideoCamera, CircleClose } from '@element-plus/icons-vue'
-import * as echarts from 'echarts'
+<script setup>
+import { VideoCamera, CircleClose } from '@element-plus/icons-vue';import { ref, computed, onMounted, onUnmounted, nextTick } from "vue";
+import { ElMessage } from "element-plus";
+import * as echarts from "echarts";
 import {
   startSupervisionSession,
   checkSupervision,
-  getSupervisionSessionStats,
-  type SupervisionSessionStats,
-} from '../api/supervision'
-
-const videoRef = ref<HTMLVideoElement | null>(null)
-const chartRef = ref<HTMLDivElement | null>(null)
-
-const isRunning = ref(false)
-const starting = ref(false)
-const hasPermission = ref(false)
-const sessionId = ref('')
-const currentStatus = ref('unknown')
-const faceCount = ref(0)
-const confidence = ref(0)
-const checkCount = ref(0)
-const duration = ref(0)
-const sessionStats = ref<SupervisionSessionStats | null>(null)
-const overlayImage = ref<string | null>(null)
-
-let stream: MediaStream | null = null
-let timer: number | null = null
-let durationTimer: number | null = null
-let chartInstance: echarts.ECharts | null = null
-
+  getSupervisionSessionStats
+} from "../api/supervision";
+const videoRef = ref(null);
+const chartRef = ref(null);
+const isRunning = ref(false);
+const starting = ref(false);
+const hasPermission = ref(false);
+const sessionId = ref("");
+const currentStatus = ref("unknown");
+const faceCount = ref(0);
+const confidence = ref(0);
+const checkCount = ref(0);
+const duration = ref(0);
+const sessionStats = ref(null);
+const overlayImage = ref(null);
+let stream = null;
+let timer = null;
+let durationTimer = null;
+let chartInstance = null;
 const statusLabel = computed(() => {
-  const map: Record<string, string> = {
-    focused: '专注',
-    distracted: '走神',
-    absent: '离开',
-    unknown: '未知',
-  }
-  return map[currentStatus.value] || '未知'
-})
-
+  const map = {
+    focused: "专注",
+    distracted: "走神",
+    absent: "离开",
+    unknown: "未知"
+  };
+  return map[currentStatus.value] || "未知";
+});
 const statusTagType = computed(() => {
-  const map: Record<string, string> = {
-    focused: 'success',
-    distracted: 'warning',
-    absent: 'info',
-    unknown: 'danger',
-  }
-  return map[currentStatus.value] || 'danger'
-})
-
-function formatDuration(seconds: number): string {
-  const m = Math.floor(seconds / 60)
-  const s = seconds % 60
-  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+  const map = {
+    focused: "success",
+    distracted: "warning",
+    absent: "info",
+    unknown: "danger"
+  };
+  return map[currentStatus.value] || "danger";
+});
+function formatDuration(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }
-
 async function startSupervision() {
-  starting.value = true
+  starting.value = true;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: 640, height: 480, facingMode: 'user' },
-      audio: false,
-    })
-
+      video: { width: 640, height: 480, facingMode: "user" },
+      audio: false
+    });
     if (videoRef.value) {
-      videoRef.value.srcObject = stream
-      hasPermission.value = true
+      videoRef.value.srcObject = stream;
+      hasPermission.value = true;
     }
-
-    const session = await startSupervisionSession()
-    sessionId.value = session.session_id
-    isRunning.value = true
-    currentStatus.value = 'unknown'
-    faceCount.value = 0
-    checkCount.value = 0
-    duration.value = 0
-    sessionStats.value = null
-
-    // 每15秒检测一次
-    timer = window.setInterval(captureAndCheck, 15000)
-    // 首次立即检测
-    setTimeout(captureAndCheck, 2000)
-
-    // 计时器
+    const session = await startSupervisionSession();
+    sessionId.value = session.session_id;
+    isRunning.value = true;
+    currentStatus.value = "unknown";
+    faceCount.value = 0;
+    checkCount.value = 0;
+    duration.value = 0;
+    sessionStats.value = null;
+    timer = window.setInterval(captureAndCheck, 15e3);
+    setTimeout(captureAndCheck, 2e3);
     durationTimer = window.setInterval(() => {
-      duration.value++
-    }, 1000)
-
-    ElMessage.success('监督已启动')
-  } catch (err: any) {
+      duration.value++;
+    }, 1e3);
+    ElMessage.success("监督已启动");
+  } catch (err) {
     if (stream) {
-      stream.getTracks().forEach(track => track.stop())
-      stream = null
+      stream.getTracks().forEach((track) => track.stop());
+      stream = null;
     }
     if (videoRef.value) {
-      videoRef.value.srcObject = null
+      videoRef.value.srcObject = null;
     }
-    hasPermission.value = false
-
-    let msg = ''
-    if (err.name === 'NotAllowedError') {
-      msg = '摄像头权限被拒绝，请在浏览器设置中允许访问摄像头'
-    } else if (err.message && err.message.includes('Network')) {
-      msg = '网络连接失败，请检查网络或稍后重试'
+    hasPermission.value = false;
+    let msg = "";
+    if (err.name === "NotAllowedError") {
+      msg = "摄像头权限被拒绝，请在浏览器设置中允许访问摄像头";
+    } else if (err.message && err.message.includes("Network")) {
+      msg = "网络连接失败，请检查网络或稍后重试";
     } else if (err.response?.status === 401) {
-      msg = '登录已过期，请重新登录'
+      msg = "登录已过期，请重新登录";
     } else {
-      msg = '启动失败：' + (err.message || '未知错误')
+      msg = "启动失败：" + (err.message || "未知错误");
     }
-    ElMessage.error(msg)
+    ElMessage.error(msg);
   } finally {
-    starting.value = false
+    starting.value = false;
   }
 }
-
 async function captureAndCheck() {
-  if (!videoRef.value || !sessionId.value) return
-
-  const video = videoRef.value
-  const canvas = document.createElement('canvas')
-  const maxWidth = 640
-  const scale = Math.min(1, maxWidth / video.videoWidth)
-  canvas.width = video.videoWidth * scale
-  canvas.height = video.videoHeight * scale
-
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-  const base64 = canvas.toDataURL('image/jpeg', 0.7)
-
+  if (!videoRef.value || !sessionId.value) return;
+  const video = videoRef.value;
+  const canvas = document.createElement("canvas");
+  const maxWidth = 640;
+  const scale = Math.min(1, maxWidth / video.videoWidth);
+  canvas.width = video.videoWidth * scale;
+  canvas.height = video.videoHeight * scale;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const base64 = canvas.toDataURL("image/jpeg", 0.7);
   try {
     const result = await checkSupervision({
       image_base64: base64,
-      session_id: sessionId.value,
-    })
-    currentStatus.value = result.status
-    faceCount.value = result.face_count
-    confidence.value = result.confidence
-    checkCount.value++
+      session_id: sessionId.value
+    });
+    currentStatus.value = result.status;
+    faceCount.value = result.face_count;
+    confidence.value = result.confidence;
+    checkCount.value++;
     if (result.overlay_base64) {
-      overlayImage.value = 'data:image/jpeg;base64,' + result.overlay_base64
+      overlayImage.value = "data:image/jpeg;base64," + result.overlay_base64;
     }
   } catch {
-    // 网络错误不中断监督
   }
 }
-
 async function stopSupervision() {
   if (timer) {
-    clearInterval(timer)
-    timer = null
+    clearInterval(timer);
+    timer = null;
   }
   if (durationTimer) {
-    clearInterval(durationTimer)
-    durationTimer = null
+    clearInterval(durationTimer);
+    durationTimer = null;
   }
-
   if (stream) {
-    stream.getTracks().forEach(track => track.stop())
-    stream = null
+    stream.getTracks().forEach((track) => track.stop());
+    stream = null;
   }
-
   if (videoRef.value) {
-    videoRef.value.srcObject = null
+    videoRef.value.srcObject = null;
   }
-
-  isRunning.value = false
-  hasPermission.value = false
-  overlayImage.value = null
-
+  isRunning.value = false;
+  hasPermission.value = false;
+  overlayImage.value = null;
   if (sessionId.value) {
     try {
-      const stats = await getSupervisionSessionStats(sessionId.value)
-      sessionStats.value = stats
-      await nextTick()
-      renderChart(stats)
+      const stats = await getSupervisionSessionStats(sessionId.value);
+      sessionStats.value = stats;
+      await nextTick();
+      renderChart(stats);
     } catch {
-      // 忽略统计错误
     }
   }
-
-  ElMessage.success('监督已结束')
+  ElMessage.success("监督已结束");
 }
-
-function renderChart(stats: SupervisionSessionStats) {
-  if (!chartRef.value) return
+function renderChart(stats) {
+  if (!chartRef.value) return;
   if (chartInstance) {
-    chartInstance.dispose()
+    chartInstance.dispose();
   }
-
-  chartInstance = echarts.init(chartRef.value)
+  chartInstance = echarts.init(chartRef.value);
   chartInstance.setOption({
-    tooltip: { trigger: 'item' },
-    legend: { bottom: '0%' },
+    tooltip: { trigger: "item" },
+    legend: { bottom: "0%" },
     series: [
       {
-        name: '专注状态',
-        type: 'pie',
-        radius: ['40%', '70%'],
+        name: "专注状态",
+        type: "pie",
+        radius: ["40%", "70%"],
         avoidLabelOverlap: false,
         itemStyle: {
           borderRadius: 10,
-          borderColor: '#fff',
-          borderWidth: 2,
+          borderColor: "#fff",
+          borderWidth: 2
         },
-        label: { show: true, formatter: '{b}: {c}次 ({d}%)' },
+        label: { show: true, formatter: "{b}: {c}次 ({d}%)" },
         data: [
-          { value: stats.focused_count, name: '专注', itemStyle: { color: '#67c23a' } },
-          { value: stats.distracted_count, name: '走神', itemStyle: { color: '#e6a23c' } },
-          { value: stats.absent_count, name: '离开', itemStyle: { color: '#909399' } },
-          { value: stats.unknown_count, name: '未知', itemStyle: { color: '#f56c6c' } },
-        ],
-      },
-    ],
-  })
+          { value: stats.focused_count, name: "专注", itemStyle: { color: "#67c23a" } },
+          { value: stats.distracted_count, name: "走神", itemStyle: { color: "#e6a23c" } },
+          { value: stats.absent_count, name: "离开", itemStyle: { color: "#909399" } },
+          { value: stats.unknown_count, name: "未知", itemStyle: { color: "#f56c6c" } }
+        ]
+      }
+    ]
+  });
 }
-
 onMounted(() => {
-  window.addEventListener('resize', () => {
-    chartInstance?.resize()
-  })
-})
-
+  window.addEventListener("resize", () => {
+    chartInstance?.resize();
+  });
+});
 onUnmounted(() => {
-  if (timer) clearInterval(timer)
-  if (durationTimer) clearInterval(durationTimer)
+  if (timer) clearInterval(timer);
+  if (durationTimer) clearInterval(durationTimer);
   if (stream) {
-    stream.getTracks().forEach(track => track.stop())
+    stream.getTracks().forEach((track) => track.stop());
   }
   if (chartInstance) {
-    chartInstance.dispose()
+    chartInstance.dispose();
   }
-})
+});
 </script>
 
 <style scoped>

@@ -43,19 +43,10 @@
   </el-table>
 </template>
 
-<script setup lang="ts">
-import type { StudentSummary } from '../api/organization'
-
-defineProps<{
-  students: StudentSummary[]
-  loading: boolean
-  removable?: boolean
-}>()
-
-defineEmits<{
-  (e: 'view', student: StudentSummary): void
-  (e: 'remove', student: StudentSummary): void
-  (e: 'suspend', student: StudentSummary): void
-  (e: 'restore', student: StudentSummary): void
-}>()
+<script setup>defineProps({
+  students: { type: Array, required: true },
+  loading: { type: Boolean, required: true },
+  removable: { type: Boolean, default: false }
+});
+defineEmits(["view", "remove", "suspend", "restore"]);
 </script>

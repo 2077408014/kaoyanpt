@@ -37,119 +37,110 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, onUnmounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { useRouter } from 'vue-router'
-import { register, sendRegisterCode } from '../api/auth'
-
-const router = useRouter()
-const formRef = ref()
-const loading = ref(false)
-const sending = ref(false)
-const countdown = ref(0)
-let countdownTimer: ReturnType<typeof setInterval> | null = null
-
+<script setup>import { ref, reactive, onUnmounted } from "vue";
+import { ElMessage } from "element-plus";
+import { useRouter } from "vue-router";
+import { register, sendRegisterCode } from "../api/auth";
+const router = useRouter();
+const formRef = ref();
+const loading = ref(false);
+const sending = ref(false);
+const countdown = ref(0);
+let countdownTimer = null;
 const form = reactive({
-  username: '',
-  email: '',
-  code: '',
-  password: '',
-  confirmPassword: ''
-})
-
+  username: "",
+  email: "",
+  code: "",
+  password: "",
+  confirmPassword: ""
+});
 const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+  username: [{ required: true, message: "请输入用户名", trigger: "blur" }],
   email: [
-    { required: true, message: '请输入邮箱', trigger: 'blur' },
-    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+    { required: true, message: "请输入邮箱", trigger: "blur" },
+    { type: "email", message: "请输入正确的邮箱格式", trigger: "blur" }
   ],
   code: [
-    { required: true, message: '请输入验证码', trigger: 'blur' },
-    { min: 6, max: 6, message: '验证码必须为6位数字', trigger: 'blur' }
+    { required: true, message: "请输入验证码", trigger: "blur" },
+    { min: 6, max: 6, message: "验证码必须为6位数字", trigger: "blur" }
   ],
   password: [
-    { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码长度至少6位', trigger: 'blur' }
+    { required: true, message: "请输入密码", trigger: "blur" },
+    { min: 6, message: "密码长度至少6位", trigger: "blur" }
   ],
   confirmPassword: [
-    { required: true, message: '请确认密码', trigger: 'blur' },
+    { required: true, message: "请确认密码", trigger: "blur" },
     {
-      validator: (_rule: any, value: string, callback: any) => {
+      validator: (_rule, value, callback) => {
         if (value !== form.password) {
-          callback(new Error('两次输入的密码不一致'))
+          callback(new Error("两次输入的密码不一致"));
         } else {
-          callback()
+          callback();
         }
       },
-      trigger: 'blur'
+      trigger: "blur"
     }
   ]
-}
-
+};
 async function handleSendCode() {
   if (!form.email) {
-    ElMessage.error('请输入邮箱')
-    return
+    ElMessage.error("请输入邮箱");
+    return;
   }
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(form.email)) {
-    ElMessage.error('请输入正确的邮箱格式')
-    return
+    ElMessage.error("请输入正确的邮箱格式");
+    return;
   }
-
-  sending.value = true
+  sending.value = true;
   try {
-    await sendRegisterCode({ email: form.email })
-    ElMessage.success('验证码已发送到您的邮箱，请查收')
-    startCountdown()
-  } catch (error: any) {
-    countdown.value = 0
-    ElMessage.error(error.response?.data?.detail || '发送验证码失败')
+    await sendRegisterCode({ email: form.email });
+    ElMessage.success("验证码已发送到您的邮箱，请查收");
+    startCountdown();
+  } catch (error) {
+    countdown.value = 0;
+    ElMessage.error(error.response?.data?.detail || "发送验证码失败");
   } finally {
-    sending.value = false
+    sending.value = false;
   }
 }
-
 function startCountdown() {
-  countdown.value = 60
+  countdown.value = 60;
   countdownTimer = setInterval(() => {
-    countdown.value--
+    countdown.value--;
     if (countdown.value <= 0) {
-      clearInterval(countdownTimer!)
-      countdownTimer = null
-      countdown.value = 0
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+      countdown.value = 0;
     }
-  }, 1000)
+  }, 1e3);
 }
-
 onUnmounted(() => {
   if (countdownTimer) {
-    clearInterval(countdownTimer)
-    countdownTimer = null
+    clearInterval(countdownTimer);
+    countdownTimer = null;
   }
-})
-
+});
 async function handleRegister() {
-  if (!formRef.value) return
-  await formRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
-    loading.value = true
+  if (!formRef.value) return;
+  await formRef.value.validate(async (valid) => {
+    if (!valid) return;
+    loading.value = true;
     try {
       await register({
         username: form.username,
         email: form.email,
         password: form.password,
         code: form.code
-      })
-      ElMessage.success('注册成功，请登录')
-      router.push('/login')
-    } catch (error: any) {
-      ElMessage.error(error.response?.data?.detail || '注册失败')
+      });
+      ElMessage.success("注册成功，请登录");
+      router.push("/login");
+    } catch (error) {
+      ElMessage.error(error.response?.data?.detail || "注册失败");
     } finally {
-      loading.value = false
+      loading.value = false;
     }
-  })
+  });
 }
 </script>
 

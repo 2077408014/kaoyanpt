@@ -9,6 +9,9 @@ from ..services.class_content_service import (
     class_content_service as content,
     load_images,
 )
+from fastapi import File, UploadFile
+from ..core.config import UPLOAD_PATH
+import uuid
 from ..schemas.organization import (
     JoinClassRequest, MyClassResponse, TeacherBrief,
     AnnouncementResponse, AssignmentResponse, SubmissionResponse,
@@ -91,7 +94,7 @@ def _submission_response(db, sub) -> SubmissionResponse:
     return SubmissionResponse(
         id=sub.id, assignment_id=sub.assignment_id, student_id=sub.student_id,
         student_name=student.username if student else None,
-        content=sub.content, submitted_at=sub.submitted_at,
+        content=sub.content, images=load_images(sub.images), submitted_at=sub.submitted_at,
         score=sub.score, feedback=sub.feedback, graded_at=sub.graded_at,
     )
 
@@ -148,11 +151,37 @@ async def submit_assignment(
     asm = content.get_assignment(db, assignment_id)
     if not asm:
         raise HTTPException(status_code=404, detail="作业不存在")
+    if not data.content.strip() and not data.images:
+        raise HTTPException(status_code=400, detail="作业内容和图片至少填写一项")
     try:
         svc.assert_active_member(db, current_user.id, asm.class_id)
-        sub = content.submit(db, asm, current_user.id, data.content)
+        sub = content.submit(db, asm, current_user.id, data.content, data.images)
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return _submission_response(db, sub)
+
+
+@router.post("/assignments/upload-image")
+async def upload_submission_image(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+):
+    allowed_types = ["image/jpeg", "image/png", "image/jpg", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="仅支持 JPG/PNG/WEBP 图片")
+
+    images_dir = UPLOAD_PATH / "assignments"
+    images_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = file.filename.split(".")[-1] if file.filename else "jpg"
+    filename = f"{uuid.uuid4().hex}.{ext}"
+
+    with open(images_dir / filename, "wb") as f:
+        f.write(await file.read())
+
+    return {
+        "image_path": f"assignments/{filename}",
+        "image_url": f"/uploads/assignments/{filename}",
+    }

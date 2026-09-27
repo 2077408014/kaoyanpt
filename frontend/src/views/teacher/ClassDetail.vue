@@ -119,7 +119,12 @@
     </el-dialog>
 
     <!-- 作业编辑 -->
-    <el-dialog v-model="asmVisible" :title="asmForm.id ? '编辑作业' : '布置作业'" width="560px">
+    <el-dialog
+      v-model="asmVisible"
+      :title="asmForm.id ? '编辑作业' : '布置作业'"
+      width="560px"
+      @paste="handleAsmPaste"
+    >
       <el-form label-width="80px" @submit.prevent>
         <el-form-item label="标题">
           <el-input v-model="asmForm.title" maxlength="100" />
@@ -170,305 +175,285 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Close, Plus } from '@element-plus/icons-vue'
-import OrgStudentTable from '../../components/OrgStudentTable.vue'
-import OrgStudentPanel from '../../components/OrgStudentPanel.vue'
+<script setup>
+import { Close, Plus } from '@element-plus/icons-vue';
+import OrgStudentTable from '../../components/OrgStudentTable.vue';
+import OrgStudentPanel from '../../components/OrgStudentPanel.vue';import { ref, computed, onMounted } from "vue";
+import { useRoute } from "vue-router";
+import { ElMessage, ElMessageBox } from "element-plus";
 import {
-  teacherApi,
-  type ClassListItem, type StudentSummary,
-  type Announcement, type Assignment,
-} from '../../api/organization'
-
-const route = useRoute()
-const classId = Number(route.params.classId)
-
-const activeTab = ref('students')
-const classInfo = ref<ClassListItem | null>(null)
-const students = ref<StudentSummary[]>([])
-const studentsLoading = ref(false)
-const selectedStudent = ref<StudentSummary | null>(null)
-
-// 学生详情面板统一用教师 API
+  teacherApi
+} from "../../api/organization";
+const route = useRoute();
+const classId = Number(route.params.classId);
+const activeTab = ref("students");
+const classInfo = ref(null);
+const students = ref([]);
+const studentsLoading = ref(false);
+const selectedStudent = ref(null);
 const panelApi = {
-  studentOverview: (studentId: number) => teacherApi.studentOverview(studentId),
-  studentMistakes: (studentId: number, subject?: string) => teacherApi.studentMistakes(studentId, subject),
-  studentMistakeDetail: (studentId: number, mistakeId: number) =>
-    teacherApi.studentMistakeDetail(studentId, mistakeId),
-}
-
-// ---------- 班级信息 ----------
+  studentOverview: (studentId) => teacherApi.studentOverview(studentId),
+  studentMistakes: (studentId, subject) => teacherApi.studentMistakes(studentId, subject),
+  studentMistakeDetail: (studentId, mistakeId) => teacherApi.studentMistakeDetail(studentId, mistakeId)
+};
 async function loadClassInfo() {
-  const list = await teacherApi.myClasses()
-  classInfo.value = list.find(c => c.id === classId) || null
+  const list = await teacherApi.myClasses();
+  classInfo.value = list.find((c) => c.id === classId) || null;
 }
-
-async function copyCode(code: string) {
+async function copyCode(code) {
   try {
-    await navigator.clipboard.writeText(code)
-    ElMessage.success('入班码已复制')
+    await navigator.clipboard.writeText(code);
+    ElMessage.success("入班码已复制");
   } catch {
-    ElMessage.warning(`复制失败，请手动复制：${code}`)
+    ElMessage.warning(`复制失败，请手动复制：${code}`);
   }
 }
-
-// ---------- 学生 ----------
 async function loadStudents() {
-  studentsLoading.value = true
+  studentsLoading.value = true;
   try {
-    students.value = await teacherApi.classStudents(classId)
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '加载失败')
+    students.value = await teacherApi.classStudents(classId);
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "加载失败");
   } finally {
-    studentsLoading.value = false
+    studentsLoading.value = false;
   }
 }
-
-function viewStudent(row: StudentSummary) {
-  selectedStudent.value = row
+function viewStudent(row) {
+  selectedStudent.value = row;
 }
-
-const addVisible = ref(false)
-const addEmail = ref('')
-const addSaving = ref(false)
-
+const addVisible = ref(false);
+const addEmail = ref("");
+const addSaving = ref(false);
 async function handleAddStudent() {
   if (!addEmail.value.trim()) {
-    ElMessage.warning('请输入学生邮箱')
-    return
+    ElMessage.warning("请输入学生邮箱");
+    return;
   }
-  addSaving.value = true
+  addSaving.value = true;
   try {
-    await teacherApi.addStudent(classId, addEmail.value.trim())
-    ElMessage.success('添加成功')
-    addVisible.value = false
-    addEmail.value = ''
-    await loadStudents()
-    await loadClassInfo()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '添加失败')
+    await teacherApi.addStudent(classId, addEmail.value.trim());
+    ElMessage.success("添加成功");
+    addVisible.value = false;
+    addEmail.value = "";
+    await loadStudents();
+    await loadClassInfo();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "添加失败");
   } finally {
-    addSaving.value = false
+    addSaving.value = false;
   }
 }
-
-async function handleSuspend(row: StudentSummary) {
+async function handleSuspend(row) {
   try {
-    await ElMessageBox.confirm(`确定暂停学生「${row.username}」吗？暂停期间该学生无法访问班级内容。`, '暂停成员', {
-      type: 'warning',
-    })
-    await teacherApi.suspendStudent(classId, row.id)
-    ElMessage.success('已暂停')
-    await loadStudents()
-  } catch (e: any) {
-    if (e !== 'cancel') ElMessage.error(e.response?.data?.detail || '操作失败')
+    await ElMessageBox.confirm(`确定暂停学生「${row.username}」吗？暂停期间该学生无法访问班级内容。`, "暂停成员", {
+      type: "warning"
+    });
+    await teacherApi.suspendStudent(classId, row.id);
+    ElMessage.success("已暂停");
+    await loadStudents();
+  } catch (e) {
+    if (e !== "cancel") ElMessage.error(e.response?.data?.detail || "操作失败");
   }
 }
-
-async function handleRestore(row: StudentSummary) {
+async function handleRestore(row) {
   try {
-    await teacherApi.restoreStudent(classId, row.id)
-    ElMessage.success('已恢复')
-    await loadStudents()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '操作失败')
+    await teacherApi.restoreStudent(classId, row.id);
+    ElMessage.success("已恢复");
+    await loadStudents();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "操作失败");
   }
 }
-
-async function handleRemove(row: StudentSummary) {
+async function handleRemove(row) {
   try {
     await ElMessageBox.confirm(
       `确定将「${row.username}」移出班级吗？移出后其学习数据仍会保留。`,
-      '移出班级',
-      { type: 'warning' }
-    )
-    await teacherApi.removeStudent(classId, row.id)
-    ElMessage.success('已移出班级')
-    await loadStudents()
-    await loadClassInfo()
-  } catch (e: any) {
-    if (e !== 'cancel') ElMessage.error(e.response?.data?.detail || '操作失败')
+      "移出班级",
+      { type: "warning" }
+    );
+    await teacherApi.removeStudent(classId, row.id);
+    ElMessage.success("已移出班级");
+    await loadStudents();
+    await loadClassInfo();
+  } catch (e) {
+    if (e !== "cancel") ElMessage.error(e.response?.data?.detail || "操作失败");
   }
 }
-
-// ---------- 公告 ----------
-const announcements = ref<Announcement[]>([])
-const annLoading = ref(false)
-const annVisible = ref(false)
-const annSaving = ref(false)
-const annForm = ref<{ id?: number; title: string; content: string }>({ title: '', content: '' })
-
+const announcements = ref([]);
+const annLoading = ref(false);
+const annVisible = ref(false);
+const annSaving = ref(false);
+const annForm = ref({ title: "", content: "" });
 async function loadAnnouncements() {
-  annLoading.value = true
+  annLoading.value = true;
   try {
-    announcements.value = await teacherApi.listAnnouncements(classId)
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '加载失败')
+    announcements.value = await teacherApi.listAnnouncements(classId);
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "加载失败");
   } finally {
-    annLoading.value = false
+    annLoading.value = false;
   }
 }
-
-function openAnnouncement(row?: Announcement) {
-  annForm.value = row
-    ? { id: row.id, title: row.title, content: row.content }
-    : { title: '', content: '' }
-  annVisible.value = true
+function openAnnouncement(row) {
+  annForm.value = row ? { id: row.id, title: row.title, content: row.content } : { title: "", content: "" };
+  annVisible.value = true;
 }
-
 async function handleSaveAnnouncement() {
   if (!annForm.value.title.trim() || !annForm.value.content.trim()) {
-    ElMessage.warning('标题和内容不能为空')
-    return
+    ElMessage.warning("标题和内容不能为空");
+    return;
   }
-  annSaving.value = true
+  annSaving.value = true;
   try {
     if (annForm.value.id) {
       await teacherApi.updateAnnouncement(annForm.value.id, {
         title: annForm.value.title.trim(),
-        content: annForm.value.content,
-      })
+        content: annForm.value.content
+      });
     } else {
       await teacherApi.createAnnouncement(classId, {
         title: annForm.value.title.trim(),
-        content: annForm.value.content,
-      })
+        content: annForm.value.content
+      });
     }
-    ElMessage.success('保存成功')
-    annVisible.value = false
-    await loadAnnouncements()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '保存失败')
+    ElMessage.success("保存成功");
+    annVisible.value = false;
+    await loadAnnouncements();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "保存失败");
   } finally {
-    annSaving.value = false
+    annSaving.value = false;
   }
 }
-
-async function handleDeleteAnnouncement(row: Announcement) {
+async function handleDeleteAnnouncement(row) {
   try {
-    await ElMessageBox.confirm(`确定删除公告「${row.title}」吗？`, '删除公告', { type: 'warning' })
-    await teacherApi.deleteAnnouncement(row.id)
-    ElMessage.success('已删除')
-    await loadAnnouncements()
-  } catch (e: any) {
-    if (e !== 'cancel') ElMessage.error(e.response?.data?.detail || '删除失败')
+    await ElMessageBox.confirm(`确定删除公告「${row.title}」吗？`, "删除公告", { type: "warning" });
+    await teacherApi.deleteAnnouncement(row.id);
+    ElMessage.success("已删除");
+    await loadAnnouncements();
+  } catch (e) {
+    if (e !== "cancel") ElMessage.error(e.response?.data?.detail || "删除失败");
   }
 }
-
-// ---------- 作业 ----------
-const assignments = ref<Assignment[]>([])
-const asmLoading = ref(false)
-const asmVisible = ref(false)
-const asmSaving = ref(false)
-const asmForm = ref<{ id?: number; title: string; content: string; images: string[] }>({
-  title: '', content: '', images: [],
-})
-const asmDue = ref<string | null>(null)
-const asmImgUploading = ref(false)
-
-const asmPreviewList = computed(() => asmForm.value.images.map(p => '/uploads/' + p))
-
-async function handleAsmImageUpload(options: { file: File }) {
+const assignments = ref([]);
+const asmLoading = ref(false);
+const asmVisible = ref(false);
+const asmSaving = ref(false);
+const asmForm = ref({
+  title: "",
+  content: "",
+  images: []
+});
+const asmDue = ref(null);
+const asmImgUploading = ref(false);
+const asmPreviewList = computed(() => asmForm.value.images.map((p) => "/uploads/" + p));
+async function handleAsmImageUpload(options) {
   if (options.file.size > 10 * 1024 * 1024) {
-    ElMessage.warning('图片不能超过 10MB')
-    return
+    ElMessage.warning("图片不能超过 10MB");
+    return;
   }
-  asmImgUploading.value = true
+  asmImgUploading.value = true;
   try {
-    const { image_path } = await teacherApi.uploadAssignmentImage(options.file)
-    asmForm.value.images.push(image_path)
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '图片上传失败')
+    const { image_path } = await teacherApi.uploadAssignmentImage(options.file);
+    asmForm.value.images.push(image_path);
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "图片上传失败");
   } finally {
-    asmImgUploading.value = false
+    asmImgUploading.value = false;
   }
 }
-
+function handleAsmPaste(e) {
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (item.type.startsWith("image/")) {
+      e.preventDefault();
+      if (asmForm.value.images.length >= 9) {
+        ElMessage.warning("最多 9 张图片");
+        return;
+      }
+      const file = item.getAsFile();
+      if (file) {
+        handleAsmImageUpload({ file });
+      }
+      return;
+    }
+  }
+}
 async function loadAssignments() {
-  asmLoading.value = true
+  asmLoading.value = true;
   try {
-    assignments.value = await teacherApi.listAssignments(classId)
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '加载失败')
+    assignments.value = await teacherApi.listAssignments(classId);
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "加载失败");
   } finally {
-    asmLoading.value = false
+    asmLoading.value = false;
   }
 }
-
-function openAssignment(row?: Assignment) {
-  asmForm.value = row
-    ? { id: row.id, title: row.title, content: row.content, images: [...(row.images || [])] }
-    : { title: '', content: '', images: [] }
-  asmDue.value = row?.due_at ? row.due_at.replace(' ', 'T').slice(0, 19) : null
-  asmVisible.value = true
+function openAssignment(row) {
+  asmForm.value = row ? { id: row.id, title: row.title, content: row.content, images: [...row.images || []] } : { title: "", content: "", images: [] };
+  asmDue.value = row?.due_at ? row.due_at.replace(" ", "T").slice(0, 19) : null;
+  asmVisible.value = true;
 }
-
 async function handleSaveAssignment() {
   if (!asmForm.value.title.trim()) {
-    ElMessage.warning('标题不能为空')
-    return
+    ElMessage.warning("标题不能为空");
+    return;
   }
   if (!asmForm.value.content.trim() && asmForm.value.images.length === 0) {
-    ElMessage.warning('内容和图片至少填写一项')
-    return
+    ElMessage.warning("内容和图片至少填写一项");
+    return;
   }
   const payload = {
     title: asmForm.value.title.trim(),
     content: asmForm.value.content,
     images: asmForm.value.images,
-    due_at: asmDue.value || null,
-  }
-  asmSaving.value = true
+    due_at: asmDue.value || null
+  };
+  asmSaving.value = true;
   try {
     if (asmForm.value.id) {
-      await teacherApi.updateAssignment(asmForm.value.id, payload)
+      await teacherApi.updateAssignment(asmForm.value.id, payload);
     } else {
-      await teacherApi.createAssignment(classId, payload)
+      await teacherApi.createAssignment(classId, payload);
     }
-    ElMessage.success('保存成功')
-    asmVisible.value = false
-    await loadAssignments()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '保存失败')
+    ElMessage.success("保存成功");
+    asmVisible.value = false;
+    await loadAssignments();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "保存失败");
   } finally {
-    asmSaving.value = false
+    asmSaving.value = false;
   }
 }
-
-async function handleDeleteAssignment(row: Assignment) {
+async function handleDeleteAssignment(row) {
   try {
-    await ElMessageBox.confirm(`确定删除作业「${row.title}」吗？已有提交也会一并删除。`, '删除作业', {
-      type: 'warning',
-    })
-    await teacherApi.deleteAssignment(row.id)
-    ElMessage.success('已删除')
-    await loadAssignments()
-  } catch (e: any) {
-    if (e !== 'cancel') ElMessage.error(e.response?.data?.detail || '删除失败')
+    await ElMessageBox.confirm(`确定删除作业「${row.title}」吗？已有提交也会一并删除。`, "删除作业", {
+      type: "warning"
+    });
+    await teacherApi.deleteAssignment(row.id);
+    ElMessage.success("已删除");
+    await loadAssignments();
+  } catch (e) {
+    if (e !== "cancel") ElMessage.error(e.response?.data?.detail || "删除失败");
   }
 }
-
-// ---------- 工具 ----------
-function isOverdue(due: string): boolean {
-  return new Date(due).getTime() <= Date.now()
+function isOverdue(due) {
+  return new Date(due).getTime() <= Date.now();
 }
-
-function formatTime(t?: string | null): string {
-  if (!t) return ''
-  return t.replace('T', ' ').slice(0, 16)
+function formatTime(t) {
+  if (!t) return "";
+  return t.replace("T", " ").slice(0, 16);
 }
-
 onMounted(async () => {
   try {
-    await Promise.all([loadClassInfo(), loadStudents()])
-    await Promise.all([loadAnnouncements(), loadAssignments()])
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '加载失败')
+    await Promise.all([loadClassInfo(), loadStudents()]);
+    await Promise.all([loadAnnouncements(), loadAssignments()]);
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "加载失败");
   }
-})
+});
 </script>
 
 <style scoped>

@@ -67,61 +67,41 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { useUserStore, roleHomePath } from '../stores/user'
-import { getMe } from '../api/auth'
-import { useStudyHeartbeat } from '../composables/useStudyHeartbeat'
-import { ElMessage } from 'element-plus'
-import {
-  HomeFilled,
-  DocumentDelete,
-  TrendCharts,
-  FolderOpened,
-  Reading,
-  Service,
-  Bell,
-  VideoCamera,
-  OfficeBuilding,
-  SwitchButton
-} from '@element-plus/icons-vue'
-
-const router = useRouter()
-const route = useRoute()
-const store = useUserStore()
-const user = ref<any>(null)
-const activeMenu = ref(route.path || '/dashboard')
-
-// 员工（教师/机构管理者/超管）以学生身份进入时，提供返回工作台入口
-const staffHome = computed(() =>
-  store.role && store.role !== 'student' ? roleHomePath(store.role) : ''
-)
-
-// 启动学习时长心跳跟踪（独立模块）
-useStudyHeartbeat()
-
+<script setup>
+import { HomeFilled, DocumentDelete, TrendCharts, FolderOpened, Reading, Service, Bell, VideoCamera, OfficeBuilding, SwitchButton } from '@element-plus/icons-vue';import { ref, computed, onMounted, watch } from "vue";
+import { useRouter, useRoute } from "vue-router";
+import { useUserStore, roleHomePath } from "../stores/user";
+import { getMe } from "../api/auth";
+import { useStudyHeartbeat } from "../composables/useStudyHeartbeat";
+import { ElMessage } from "element-plus";
+const router = useRouter();
+const route = useRoute();
+const store = useUserStore();
+const user = ref(null);
+const activeMenu = ref(route.path || "/dashboard");
+const staffHome = computed(
+  () => store.role && store.role !== "student" ? roleHomePath(store.role) : ""
+);
+useStudyHeartbeat();
 watch(() => route.path, (newPath) => {
-  activeMenu.value = newPath
-}, { immediate: true })
-
+  activeMenu.value = newPath;
+}, { immediate: true });
 onMounted(async () => {
   try {
-    const me = await getMe()
-    store.setUser(me)
-    user.value = me
-  } catch (error: any) {
+    const me = await getMe();
+    store.setUser(me);
+    user.value = me;
+  } catch (error) {
     if (error.response?.status === 401) {
-      store.logout()
-      router.push('/login')
+      store.logout();
+      router.push("/login");
     }
   }
-})
-
+});
 function handleLogout() {
-  store.logout()
-  ElMessage.success('已退出登录')
-  router.push('/login')
+  store.logout();
+  ElMessage.success("已退出登录");
+  router.push("/login");
 }
 </script>
 

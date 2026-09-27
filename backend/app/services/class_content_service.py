@@ -132,13 +132,15 @@ class ClassContentService:
         ).first()
 
     def submit(
-        self, db: Session, asm: Assignment, student_id: int, content: str
+        self, db: Session, asm: Assignment, student_id: int, content: str,
+        images: Optional[list[str]] = None,
     ) -> AssignmentSubmission:
         if self.is_overdue(asm):
             raise ValueError("已过作业截止时间，无法提交")
         sub = self.get_submission(db, asm.id, student_id)
         if sub:
             sub.content = content
+            sub.images = dump_images(images)
             sub.submitted_at = func.now()
             # 重新提交后旧评分失效
             sub.score = None
@@ -148,6 +150,7 @@ class ClassContentService:
         else:
             sub = AssignmentSubmission(
                 assignment_id=asm.id, student_id=student_id, content=content,
+                images=dump_images(images),
             )
             db.add(sub)
         db.commit()

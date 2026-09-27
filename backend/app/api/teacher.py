@@ -282,7 +282,7 @@ def _submission_response(db, sub) -> SubmissionResponse:
     return SubmissionResponse(
         id=sub.id, assignment_id=sub.assignment_id, student_id=sub.student_id,
         student_name=student.username if student else None,
-        content=sub.content, submitted_at=sub.submitted_at,
+        content=sub.content, images=load_images(sub.images), submitted_at=sub.submitted_at,
         score=sub.score, feedback=sub.feedback, graded_at=sub.graded_at,
     )
 

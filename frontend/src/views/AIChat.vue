@@ -98,401 +98,366 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { User, Message, Delete, Refresh, Tools, Cpu, RefreshRight, WarningFilled } from '@element-plus/icons-vue'
-import { command } from '../api/ai'
-import { agentChat, getAgentHistory, clearAgentHistory } from '../api/agent'
-import { marked } from 'marked'
-import katex from 'katex'
-import 'katex/dist/katex.min.css'
-
+<script setup>
+import { Cpu, DataLine, Delete, Message, Refresh, RefreshRight, Tools, User, WarningFilled } from '@element-plus/icons-vue';import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { ElMessage } from 'element-plus';
+import { command } from '../api/ai';
+import { agentChat, getAgentHistory, clearAgentHistory } from '../api/agent';
+import { marked } from 'marked';
+import katex from 'katex';
+import 'katex/dist/katex.min.css';
 marked.setOptions({
-  breaks: true,
-  gfm: true
-})
-
-const router = useRouter()
-const messages = ref<any[]>([])
-const inputMessage = ref('')
-const loading = ref(false)
-const suggestions = ref<string[]>([])
-const chatContainerRef = ref<HTMLElement | null>(null)
-const lastSentTime = ref(0)
-const regeneratingIds = ref<Record<string | number, boolean>>({})
-
+    breaks: true,
+    gfm: true
+});
+const router = useRouter();
+const messages = ref([]);
+const inputMessage = ref('');
+const loading = ref(false);
+const suggestions = ref([]);
+const chatContainerRef = ref(null);
+const lastSentTime = ref(0);
+const regeneratingIds = ref({});
 function goToConfig() {
-  router.push('/dashboard/ai-config')
+    router.push('/dashboard/ai-config');
 }
-
-function renderMathFormula(formula: string, displayMode: boolean): string {
-  try {
-    return katex.renderToString(formula.trim(), {
-      displayMode,
-      throwOnError: false,
-      strict: false,
-      trust: true
-    })
-  } catch {
-    return `<span class="math-error">${displayMode ? '$$' : '$'}${formula.trim()}${displayMode ? '$$' : '$'}</span>`
-  }
-}
-
-function normalizeLatex(formula: string): string {
-  let result = formula
-  
-  // 修正常见的 AI 拼写错误：inftyty, infinity 等 -> \infty
-  result = result.replace(/\\?inftyty/g, '\\infty')
-  result = result.replace(/\\?infinity/g, '\\infty')
-  
-  result = result.replace(/\\lim_\{([^}]+)\}/g, '\\lim_{$1}')
-  result = result.replace(/\\lim\s*\{([^}]+)\}/g, '\\lim_{$1}')
-  result = result.replace(/lim_\(([^)]+)\)/g, '\\lim_{$1}')
-  result = result.replace(/lim_\(([^)]+)\)/g, '\\lim_{$1}')
-  result = result.replace(/lim\s*([a-zA-Z]+)\s*[-→]\s*([0-9a-zA-Z]+)/g, '\\lim_{$1 \\to $2}')
-  
-  result = result.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\frac{$1}{$2}')
-  result = result.replace(/\\frac\(([^)]+)\)\(([^)]+)\)/g, '\\frac{$1}{$2}')
-  
-  const mathCommands = ['sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'ln', 'log', 'sqrt', 'int', 'sum', 'to', 'cdot', 'infty', 'alpha', 'beta', 'gamma', 'delta', 'epsilon', 'theta', 'lambda', 'mu', 'pi', 'rho', 'sigma', 'phi', 'psi', 'omega']
-  for (const cmd of mathCommands) {
-    const regex = new RegExp(`\\\\${cmd}`, 'g')
-    result = result.replace(regex, `\\${cmd}`)
-  }
-  
-  result = result.replace(/\^\{([^}]+)\}/g, '^{$1}')
-  result = result.replace(/\^([a-zA-Z0-9]+)/g, '^{$1}')
-  result = result.replace(/_\{([^}]+)\}/g, '_{$1}')
-  result = result.replace(/_([a-zA-Z0-9]+)/g, '_{$1}')
-  
-  result = result.replace(/\*/g, ' \\cdot ')
-  
-  // 精确替换独立的 inf 为 \infty，避免误伤 \infty, \int 等
-  // 替换 "_inf" -> "_{\infty}"
-  result = result.replace(/_\s*inf\b/g, '_{\\infty}')
-  // 替换 "\to inf" -> "\to \infty"
-  result = result.replace(/\\to\s+inf\b/g, '\\to \\infty')
-  // 替换开头或单独的 "inf" -> "\infty" (但不替换 \infty 或 \int 中的 inf)
-  result = result.replace(/(?<!\\)inf\b/g, '\\infty')
-  
-  return result.trim()
-}
-
-function renderMarkdown(text: string): string {
-  let result = text || ''
-  
-  const mathBlocks: { placeholder: string; html: string }[] = []
-  
-  const addMathBlock = (formula: string, displayMode: boolean): string => {
-    const normalized = normalizeLatex(formula)
-    const html = renderMathFormula(normalized, displayMode)
-    const placeholder = `@@MATH_${displayMode ? 'BLOCK' : 'INLINE'}_${mathBlocks.length}@@`
-    mathBlocks.push({ placeholder, html })
-    return placeholder
-  }
-  
-  result = result.replace(/\$\$(.*?)\$\$/gms, (_, formula) => {
-    const trimmedFormula = formula.trim()
-    if (!trimmedFormula) return '$$'
-    return addMathBlock(trimmedFormula, true)
-  })
-  
-  result = result.replace(/(?<!\\)\$(.*?)(?<!\\)\$/g, (_, formula) => {
-    const trimmedFormula = formula.trim()
-    if (!trimmedFormula) return '$'
-    if (trimmedFormula.length > 100) {
-      return addMathBlock(trimmedFormula, true)
+function renderMathFormula(formula, displayMode) {
+    try {
+        return katex.renderToString(formula.trim(), {
+            displayMode,
+            throwOnError: false,
+            strict: false,
+            trust: true
+        });
     }
-    return addMathBlock(trimmedFormula, false)
-  })
-  
-  result = result.replace(/\\\((.*?)\\\)/g, (_, formula) => {
-    const trimmedFormula = formula.trim()
-    if (!trimmedFormula) return '\\()'
-    return addMathBlock(trimmedFormula, false)
-  })
-  
-  result = result.replace(/\\\[([\s\S]*?)\\\]/g, (_, formula) => {
-    const trimmedFormula = formula.trim()
-    if (!trimmedFormula) return '\\[]'
-    return addMathBlock(trimmedFormula, true)
-  })
-  
-  result = result.replace(/\[([\s\S]*?)\]/g, (_, formula) => {
-    const trimmedFormula = formula.trim()
-    if (!trimmedFormula) return '[]'
-    if (trimmedFormula.includes('\\') || trimmedFormula.includes('lim') || trimmedFormula.includes('frac') || trimmedFormula.includes('int') || trimmedFormula.includes('sum') || trimmedFormula.includes('sin') || trimmedFormula.includes('cos') || trimmedFormula.includes('tan')) {
-      return addMathBlock(trimmedFormula, true)
+    catch {
+        return `<span class="math-error">${displayMode ? '$$' : '$'}${formula.trim()}${displayMode ? '$$' : '$'}</span>`;
     }
-    return '[' + trimmedFormula + ']'
-  })
-  
-  const mathPattern = /((?:\\frac\{[^}]+\}\{[^}]+\})|(?:\\lim\{[^}]+\})|(?:\\int[^}]+)|(?:\\sum[^}]+)|(?:\\sin|\\cos|\\tan|\\cot|\\sec|\\csc|\\ln|\\log|\\exp|\\sqrt)\s*\([^)]+\)|(?:\\alpha|\\beta|\\gamma|\\delta|\\epsilon|\\zeta|\\eta|\\theta|\\iota|\\kappa|\\lambda|\\mu|\\nu|\\xi|\\pi|\\rho|\\sigma|\\tau|\\upsilon|\\phi|\\chi|\\psi|\\omega|\\Delta|\\Gamma|\\Theta|\\Lambda|\\Xi|\\Pi|\\Sigma|\\Upsilon|\\Phi|\\Psi|\\Omega))/gi
-  
-  result = result.replace(mathPattern, (match) => {
-    if (match.includes('@@MATH_')) return match
-    const isDisplayMode = match.length > 50 || match.includes('lim') || match.includes('int') || match.includes('sum') || match.includes('frac')
-    return addMathBlock(match, isDisplayMode)
-  })
-  
-  const simpleMathPattern = /((?:\\frac\{[^}]+\}\{[^}]+\})|(?:\\lim\{[^}]+\})|(?:\\int[^}]+)|(?:\\sum[^}]+)|(?:\\sin|\\cos|\\tan|\\cot|\\sec|\\csc|\\ln|\\log|\\exp|\\sqrt)\s*\([^)]+\))/gi
-  
-  result = result.replace(simpleMathPattern, (match) => {
-    if (match.includes('@@MATH_')) return match
-    const isDisplayMode = match.length > 50 || match.includes('lim') || match.includes('int') || match.includes('sum') || match.includes('frac')
-    return addMathBlock(match, isDisplayMode)
-  })
-  
-  const parsedMarkdown = marked.parse(result)
-  if (parsedMarkdown) {
-    result = parsedMarkdown as string
-  }
-  
-  mathBlocks.forEach(({ placeholder, html }) => {
-    result = result.split(placeholder).join(html)
-  })
-  
-  return result
 }
-
+function normalizeLatex(formula) {
+    let result = formula;
+    // 修正常见的 AI 拼写错误：inftyty, infinity 等 -> \infty
+    result = result.replace(/\\?inftyty/g, '\\infty');
+    result = result.replace(/\\?infinity/g, '\\infty');
+    result = result.replace(/\\lim_\{([^}]+)\}/g, '\\lim_{$1}');
+    result = result.replace(/\\lim\s*\{([^}]+)\}/g, '\\lim_{$1}');
+    result = result.replace(/lim_\(([^)]+)\)/g, '\\lim_{$1}');
+    result = result.replace(/lim_\(([^)]+)\)/g, '\\lim_{$1}');
+    result = result.replace(/lim\s*([a-zA-Z]+)\s*[-→]\s*([0-9a-zA-Z]+)/g, '\\lim_{$1 \\to $2}');
+    result = result.replace(/\\frac\{([^}]+)\}\{([^}]+)\}/g, '\\frac{$1}{$2}');
+    result = result.replace(/\\frac\(([^)]+)\)\(([^)]+)\)/g, '\\frac{$1}{$2}');
+    const mathCommands = ['sin', 'cos', 'tan', 'cot', 'sec', 'csc', 'ln', 'log', 'sqrt', 'int', 'sum', 'to', 'cdot', 'infty', 'alpha', 'beta', 'gamma', 'delta', 'epsilon', 'theta', 'lambda', 'mu', 'pi', 'rho', 'sigma', 'phi', 'psi', 'omega'];
+    for (const cmd of mathCommands) {
+        const regex = new RegExp(`\\\\${cmd}`, 'g');
+        result = result.replace(regex, `\\${cmd}`);
+    }
+    result = result.replace(/\^\{([^}]+)\}/g, '^{$1}');
+    result = result.replace(/\^([a-zA-Z0-9]+)/g, '^{$1}');
+    result = result.replace(/_\{([^}]+)\}/g, '_{$1}');
+    result = result.replace(/_([a-zA-Z0-9]+)/g, '_{$1}');
+    result = result.replace(/\*/g, ' \\cdot ');
+    // 精确替换独立的 inf 为 \infty，避免误伤 \infty, \int 等
+    // 替换 "_inf" -> "_{\infty}"
+    result = result.replace(/_\s*inf\b/g, '_{\\infty}');
+    // 替换 "\to inf" -> "\to \infty"
+    result = result.replace(/\\to\s+inf\b/g, '\\to \\infty');
+    // 替换开头或单独的 "inf" -> "\infty" (但不替换 \infty 或 \int 中的 inf)
+    result = result.replace(/(?<!\\)inf\b/g, '\\infty');
+    return result.trim();
+}
+function renderMarkdown(text) {
+    let result = text || '';
+    const mathBlocks = [];
+    const addMathBlock = (formula, displayMode) => {
+        const normalized = normalizeLatex(formula);
+        const html = renderMathFormula(normalized, displayMode);
+        const placeholder = `@@MATH_${displayMode ? 'BLOCK' : 'INLINE'}_${mathBlocks.length}@@`;
+        mathBlocks.push({ placeholder, html });
+        return placeholder;
+    };
+    result = result.replace(/\$\$(.*?)\$\$/gms, (_, formula) => {
+        const trimmedFormula = formula.trim();
+        if (!trimmedFormula)
+            return '$$';
+        return addMathBlock(trimmedFormula, true);
+    });
+    result = result.replace(/(?<!\\)\$(.*?)(?<!\\)\$/g, (_, formula) => {
+        const trimmedFormula = formula.trim();
+        if (!trimmedFormula)
+            return '$';
+        if (trimmedFormula.length > 100) {
+            return addMathBlock(trimmedFormula, true);
+        }
+        return addMathBlock(trimmedFormula, false);
+    });
+    result = result.replace(/\\\((.*?)\\\)/g, (_, formula) => {
+        const trimmedFormula = formula.trim();
+        if (!trimmedFormula)
+            return '\\()';
+        return addMathBlock(trimmedFormula, false);
+    });
+    result = result.replace(/\\\[([\s\S]*?)\\\]/g, (_, formula) => {
+        const trimmedFormula = formula.trim();
+        if (!trimmedFormula)
+            return '\\[]';
+        return addMathBlock(trimmedFormula, true);
+    });
+    result = result.replace(/\[([\s\S]*?)\]/g, (_, formula) => {
+        const trimmedFormula = formula.trim();
+        if (!trimmedFormula)
+            return '[]';
+        if (trimmedFormula.includes('\\') || trimmedFormula.includes('lim') || trimmedFormula.includes('frac') || trimmedFormula.includes('int') || trimmedFormula.includes('sum') || trimmedFormula.includes('sin') || trimmedFormula.includes('cos') || trimmedFormula.includes('tan')) {
+            return addMathBlock(trimmedFormula, true);
+        }
+        return '[' + trimmedFormula + ']';
+    });
+    const mathPattern = /((?:\\frac\{[^}]+\}\{[^}]+\})|(?:\\lim\{[^}]+\})|(?:\\int[^}]+)|(?:\\sum[^}]+)|(?:\\sin|\\cos|\\tan|\\cot|\\sec|\\csc|\\ln|\\log|\\exp|\\sqrt)\s*\([^)]+\)|(?:\\alpha|\\beta|\\gamma|\\delta|\\epsilon|\\zeta|\\eta|\\theta|\\iota|\\kappa|\\lambda|\\mu|\\nu|\\xi|\\pi|\\rho|\\sigma|\\tau|\\upsilon|\\phi|\\chi|\\psi|\\omega|\\Delta|\\Gamma|\\Theta|\\Lambda|\\Xi|\\Pi|\\Sigma|\\Upsilon|\\Phi|\\Psi|\\Omega))/gi;
+    result = result.replace(mathPattern, (match) => {
+        if (match.includes('@@MATH_'))
+            return match;
+        const isDisplayMode = match.length > 50 || match.includes('lim') || match.includes('int') || match.includes('sum') || match.includes('frac');
+        return addMathBlock(match, isDisplayMode);
+    });
+    const simpleMathPattern = /((?:\\frac\{[^}]+\}\{[^}]+\})|(?:\\lim\{[^}]+\})|(?:\\int[^}]+)|(?:\\sum[^}]+)|(?:\\sin|\\cos|\\tan|\\cot|\\sec|\\csc|\\ln|\\log|\\exp|\\sqrt)\s*\([^)]+\))/gi;
+    result = result.replace(simpleMathPattern, (match) => {
+        if (match.includes('@@MATH_'))
+            return match;
+        const isDisplayMode = match.length > 50 || match.includes('lim') || match.includes('int') || match.includes('sum') || match.includes('frac');
+        return addMathBlock(match, isDisplayMode);
+    });
+    const parsedMarkdown = marked.parse(result);
+    if (parsedMarkdown) {
+        result = parsedMarkdown;
+    }
+    mathBlocks.forEach(({ placeholder, html }) => {
+        result = result.split(placeholder).join(html);
+    });
+    return result;
+}
 async function loadHistory() {
-  try {
-    const history = await getAgentHistory('ai-qa', 50)
-    const list = history.map(msg => ({
-      id: msg.id,
-      role: msg.message_type === 'question' ? 'user' : 'ai',
-      content: msg.content,
-      source: msg.source,
-      lastUserMessage: ''
-    }))
-
-    // 为每条 AI 消息关联它前一条用户消息，便于"重新回答"
-    let prevUser = ''
-    for (const item of list) {
-      if (item.role === 'user') {
-        prevUser = item.content
-      } else if (item.role === 'ai') {
-        item.lastUserMessage = prevUser
-      }
+    try {
+        const history = await getAgentHistory('ai-qa', 50);
+        const list = history.map(msg => ({
+            id: msg.id,
+            role: msg.message_type === 'question' ? 'user' : 'ai',
+            content: msg.content,
+            source: msg.source,
+            lastUserMessage: ''
+        }));
+        // 为每条 AI 消息关联它前一条用户消息，便于"重新回答"
+        let prevUser = '';
+        for (const item of list) {
+            if (item.role === 'user') {
+                prevUser = item.content;
+            }
+            else if (item.role === 'ai') {
+                item.lastUserMessage = prevUser;
+            }
+        }
+        messages.value = list;
+        if (messages.value.length === 0) {
+            messages.value.push({
+                id: 1,
+                role: 'ai',
+                content: '你好！我是考研复习平台的AI助手。请问有什么我可以帮你的？',
+                source: 'AI系统',
+                lastUserMessage: ''
+            });
+        }
     }
-
-    messages.value = list
-
-    if (messages.value.length === 0) {
-      messages.value.push({
-        id: 1,
-        role: 'ai',
-        content: '你好！我是考研复习平台的AI助手。请问有什么我可以帮你的？',
-        source: 'AI系统',
-        lastUserMessage: ''
-      })
+    catch {
+        messages.value.push({
+            id: 1,
+            role: 'ai',
+            content: '你好！我是考研复习平台的AI助手。请问有什么我可以帮你的？',
+            source: 'AI系统',
+            lastUserMessage: ''
+        });
     }
-  } catch {
-    messages.value.push({
-      id: 1,
-      role: 'ai',
-      content: '你好！我是考研复习平台的AI助手。请问有什么我可以帮你的？',
-      source: 'AI系统',
-      lastUserMessage: ''
-    })
-  }
 }
-
 async function handleSend() {
-  if (!inputMessage.value.trim() || loading.value) {
-    if (!inputMessage.value.trim()) {
-      ElMessage.warning('请输入内容')
+    if (!inputMessage.value.trim() || loading.value) {
+        if (!inputMessage.value.trim()) {
+            ElMessage.warning('请输入内容');
+        }
+        return;
     }
-    return
-  }
-
-  const now = Date.now()
-  if (now - lastSentTime.value < 500) {
-    return
-  }
-
-  const userMsg = inputMessage.value.trim()
-
-  loading.value = true
-  inputMessage.value = ''
-  lastSentTime.value = now
-
-  const lastMessage = messages.value[messages.value.length - 1]
-  if (lastMessage && lastMessage.role === 'user' && lastMessage.content === userMsg) {
-    loading.value = false
-    return
-  }
-
-  messages.value.push({
-    id: Date.now(),
-    role: 'user',
-    content: userMsg
-  })
-
-  suggestions.value = []
-
-  try {
-    const result = await agentChat({ agent_name: 'ai-qa', message: userMsg })
-
+    const now = Date.now();
+    if (now - lastSentTime.value < 500) {
+        return;
+    }
+    const userMsg = inputMessage.value.trim();
+    loading.value = true;
+    inputMessage.value = '';
+    lastSentTime.value = now;
+    const lastMessage = messages.value[messages.value.length - 1];
+    if (lastMessage && lastMessage.role === 'user' && lastMessage.content === userMsg) {
+        loading.value = false;
+        return;
+    }
     messages.value.push({
-      id: Date.now() + 1,
-      role: 'ai',
-      content: result.answer || '暂无回答',
-      source: result.source || 'AI',
-      fromKnowledgeBase: false,
-      lastUserMessage: userMsg
-    })
-
-    handleRouteNavigation(userMsg)
-  } catch (error: any) {
-    const errorMsg = error.response?.data?.detail || error.message || '抱歉，我暂时无法回答这个问题。'
-    messages.value.push({
-      id: Date.now() + 1,
-      role: 'ai',
-      content: errorMsg,
-      source: '调用失败',
-      fromKnowledgeBase: false,
-      failed: true,
-      lastUserMessage: userMsg
-    })
-  } finally {
-    loading.value = false
-  }
+        id: Date.now(),
+        role: 'user',
+        content: userMsg
+    });
+    suggestions.value = [];
+    try {
+        const result = await agentChat({ agent_name: 'ai-qa', message: userMsg });
+        messages.value.push({
+            id: Date.now() + 1,
+            role: 'ai',
+            content: result.answer || '暂无回答',
+            source: result.source || 'AI',
+            fromKnowledgeBase: false,
+            lastUserMessage: userMsg
+        });
+        handleRouteNavigation(userMsg);
+    }
+    catch (error) {
+        const errorMsg = error.response?.data?.detail || error.message || '抱歉，我暂时无法回答这个问题。';
+        messages.value.push({
+            id: Date.now() + 1,
+            role: 'ai',
+            content: errorMsg,
+            source: '调用失败',
+            fromKnowledgeBase: false,
+            failed: true,
+            lastUserMessage: userMsg
+        });
+    }
+    finally {
+        loading.value = false;
+    }
 }
-
-async function regenerateMessage(failedMsg: any) {
-  const userMsg = failedMsg.lastUserMessage
-  if (!userMsg) {
-    ElMessage.warning('没有可重新生成的问题')
-    return
-  }
-  if (loading.value || regeneratingIds.value[failedMsg.id]) return
-
-  regeneratingIds.value[failedMsg.id] = true
-
-  try {
-    const result = await agentChat({ agent_name: 'ai-qa', message: userMsg })
-
-    const newMsg = {
-      id: Date.now() + 1,
-      role: 'ai',
-      content: result.answer || '暂无回答',
-      source: result.source || 'AI',
-      fromKnowledgeBase: false,
-      lastUserMessage: userMsg
+async function regenerateMessage(failedMsg) {
+    const userMsg = failedMsg.lastUserMessage;
+    if (!userMsg) {
+        ElMessage.warning('没有可重新生成的问题');
+        return;
     }
-
-    // 替换原失败/旧回答
-    const idx = messages.value.findIndex(m => m.id === failedMsg.id)
-    if (idx >= 0) {
-      messages.value.splice(idx, 1, newMsg)
-    } else {
-      messages.value.push(newMsg)
+    if (loading.value || regeneratingIds.value[failedMsg.id])
+        return;
+    regeneratingIds.value[failedMsg.id] = true;
+    try {
+        const result = await agentChat({ agent_name: 'ai-qa', message: userMsg });
+        const newMsg = {
+            id: Date.now() + 1,
+            role: 'ai',
+            content: result.answer || '暂无回答',
+            source: result.source || 'AI',
+            fromKnowledgeBase: false,
+            lastUserMessage: userMsg
+        };
+        // 替换原失败/旧回答
+        const idx = messages.value.findIndex(m => m.id === failedMsg.id);
+        if (idx >= 0) {
+            messages.value.splice(idx, 1, newMsg);
+        }
+        else {
+            messages.value.push(newMsg);
+        }
     }
-  } catch (error: any) {
-    const errorMsg = error.response?.data?.detail || error.message || '抱歉，我暂时无法回答这个问题。'
-    const errorAiMsg = {
-      id: Date.now() + 1,
-      role: 'ai',
-      content: errorMsg,
-      source: '调用失败',
-      fromKnowledgeBase: false,
-      failed: true,
-      lastUserMessage: userMsg
+    catch (error) {
+        const errorMsg = error.response?.data?.detail || error.message || '抱歉，我暂时无法回答这个问题。';
+        const errorAiMsg = {
+            id: Date.now() + 1,
+            role: 'ai',
+            content: errorMsg,
+            source: '调用失败',
+            fromKnowledgeBase: false,
+            failed: true,
+            lastUserMessage: userMsg
+        };
+        const idx = messages.value.findIndex(m => m.id === failedMsg.id);
+        if (idx >= 0) {
+            messages.value.splice(idx, 1, errorAiMsg);
+        }
+        else {
+            messages.value.push(errorAiMsg);
+        }
     }
-    const idx = messages.value.findIndex(m => m.id === failedMsg.id)
-    if (idx >= 0) {
-      messages.value.splice(idx, 1, errorAiMsg)
-    } else {
-      messages.value.push(errorAiMsg)
+    finally {
+        regeneratingIds.value[failedMsg.id] = false;
     }
-  } finally {
-    regeneratingIds.value[failedMsg.id] = false
-  }
 }
-
-function handleRouteNavigation(userMessage: string) {
-  const commands: Array<{ keywords: string[]; route: string }> = [
-    { keywords: ['打开错题', '去错题', '错题管理', '跳转错题'], route: '/dashboard/mistakes' },
-    { keywords: ['打开单词', '去单词', '背诵中心', '单词复习', '跳转单词'], route: '/dashboard/words' },
-    { keywords: ['打开推荐', '去推荐', '智能推荐', '跳转推荐', '生成推荐'], route: '/dashboard/recommend' },
-    { keywords: ['打开报告', '去报告', '学习报告', '跳转报告'], route: '/dashboard/report' },
-    { keywords: ['打开首页', '去首页', '跳转首页'], route: '/dashboard' },
-    { keywords: ['打开资料', '去资料', '资料管理', '跳转资料'], route: '/dashboard/resources' },
-    { keywords: ['打开ai配置', 'ai配置', '跳转ai配置'], route: '/dashboard/ai-config' }
-  ]
-  
-  const lowerMessage = userMessage.toLowerCase()
-  for (const cmd of commands) {
-    if (cmd.keywords.some(kw => lowerMessage.includes(kw))) {
-      router.push(cmd.route)
-      break
+function handleRouteNavigation(userMessage) {
+    const commands = [
+        { keywords: ['打开错题', '去错题', '错题管理', '跳转错题'], route: '/dashboard/mistakes' },
+        { keywords: ['打开单词', '去单词', '背诵中心', '单词复习', '跳转单词'], route: '/dashboard/words' },
+        { keywords: ['打开推荐', '去推荐', '智能推荐', '跳转推荐', '生成推荐'], route: '/dashboard/recommend' },
+        { keywords: ['打开报告', '去报告', '学习报告', '跳转报告'], route: '/dashboard/report' },
+        { keywords: ['打开首页', '去首页', '跳转首页'], route: '/dashboard' },
+        { keywords: ['打开资料', '去资料', '资料管理', '跳转资料'], route: '/dashboard/resources' },
+        { keywords: ['打开ai配置', 'ai配置', '跳转ai配置'], route: '/dashboard/ai-config' }
+    ];
+    const lowerMessage = userMessage.toLowerCase();
+    for (const cmd of commands) {
+        if (cmd.keywords.some(kw => lowerMessage.includes(kw))) {
+            router.push(cmd.route);
+            break;
+        }
     }
-  }
 }
-
-async function sendCommand(cmd: string) {
-  inputMessage.value = cmd
-  
-  try {
-    const result = await command(cmd)
-    
-    messages.value.push({
-      id: Date.now(),
-      role: 'user',
-      content: cmd
-    })
-    
-    messages.value.push({
-      id: Date.now() + 1,
-      role: 'ai',
-      content: result.message,
-      source: '指令系统',
-      fromKnowledgeBase: false
-    })
-    
-    if (result.action === 'open_mistakes') {
-      setTimeout(() => router.push('/dashboard/mistakes'), 1000)
-    } else if (result.action === 'start_recitation') {
-      setTimeout(() => router.push('/dashboard/words'), 1000)
-    } else if (result.action === 'generate_recommendation') {
-      setTimeout(() => router.push('/dashboard/recommend'), 1000)
-    } else if (result.action === 'analyze_weak_points') {
-      setTimeout(() => router.push('/dashboard/recommend'), 1000)
-    } else if (result.action === 'generate_report') {
-      setTimeout(() => router.push('/dashboard/report'), 1000)
+async function sendCommand(cmd) {
+    inputMessage.value = cmd;
+    try {
+        const result = await command(cmd);
+        messages.value.push({
+            id: Date.now(),
+            role: 'user',
+            content: cmd
+        });
+        messages.value.push({
+            id: Date.now() + 1,
+            role: 'ai',
+            content: result.message,
+            source: '指令系统',
+            fromKnowledgeBase: false
+        });
+        if (result.action === 'open_mistakes') {
+            setTimeout(() => router.push('/dashboard/mistakes'), 1000);
+        }
+        else if (result.action === 'start_recitation') {
+            setTimeout(() => router.push('/dashboard/words'), 1000);
+        }
+        else if (result.action === 'generate_recommendation') {
+            setTimeout(() => router.push('/dashboard/recommend'), 1000);
+        }
+        else if (result.action === 'analyze_weak_points') {
+            setTimeout(() => router.push('/dashboard/recommend'), 1000);
+        }
+        else if (result.action === 'generate_report') {
+            setTimeout(() => router.push('/dashboard/report'), 1000);
+        }
     }
-  } catch {
-    // ignore
-  }
+    catch {
+        // ignore
+    }
 }
-
-function sendSuggestion(suggestion: string) {
-  inputMessage.value = suggestion
-  handleSend()
+function sendSuggestion(suggestion) {
+    inputMessage.value = suggestion;
+    handleSend();
 }
-
 async function handleClearHistory() {
-  try {
-    await clearAgentHistory('ai-qa')
-    messages.value = [{
-      id: 1,
-      role: 'ai',
-      content: '你好！我是考研复习平台的AI助手。请问有什么我可以帮你的？',
-      source: 'AI系统',
-      lastUserMessage: ''
-    }]
-    ElMessage.success('聊天记录已清除')
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.detail || '清除失败')
-  }
+    try {
+        await clearAgentHistory('ai-qa');
+        messages.value = [{
+                id: 1,
+                role: 'ai',
+                content: '你好！我是考研复习平台的AI助手。请问有什么我可以帮你的？',
+                source: 'AI系统',
+                lastUserMessage: ''
+            }];
+        ElMessage.success('聊天记录已清除');
+    }
+    catch (error) {
+        ElMessage.error(error.response?.data?.detail || '清除失败');
+    }
 }
-
 onMounted(() => {
-  loadHistory()
-})
+    loadHistory();
+});
 </script>
 
 <style scoped>

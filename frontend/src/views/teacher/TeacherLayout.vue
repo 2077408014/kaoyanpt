@@ -2,11 +2,10 @@
   <RoleLayout title="教师工作台" :items="menuItems" />
 </template>
 
-<script setup lang="ts">
-import { School } from '@element-plus/icons-vue'
-import RoleLayout from '../../components/RoleLayout.vue'
-
+<script setup>
+import RoleLayout from '../../components/RoleLayout.vue';import { School, ChatDotRound } from "@element-plus/icons-vue";
 const menuItems = [
-  { index: '/teacher', label: '我的班级', icon: School },
-]
+  { index: "/teacher", label: "我的班级", icon: School },
+  { index: "/teacher/assistant", label: "AI 助手", icon: ChatDotRound }
+];
 </script>

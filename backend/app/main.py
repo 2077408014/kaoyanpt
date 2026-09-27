@@ -6,7 +6,7 @@ from .core.config import UPLOAD_PATH
 from .core.seed import run_seed
 from .core.migrations_org import run_org_migration
 from .api import auth, mistakes, words, politics, recommendation, resources, ai, report, assistants, rag, supervision, study, ai_config, agent
-from .api import admin, teacher, institution, classes
+from .api import admin, teacher, institution, classes, assistant
 from .services.collaboration_engine import init_collaboration_engine
 from .services.ai_service import ai_service
 
@@ -46,6 +46,7 @@ app.include_router(admin.router)
 app.include_router(teacher.router)
 app.include_router(institution.router)
 app.include_router(classes.router)
+app.include_router(assistant.router)
 
 
 @app.get("/")

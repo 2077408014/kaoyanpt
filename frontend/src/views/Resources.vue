@@ -200,281 +200,255 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, View, InfoFilled, Delete, FolderOpened, DataLine, Connection } from '@element-plus/icons-vue'
-import ResourceChat from './recitation/ResourceChat.vue'
+<script setup>
+import { Plus, Search, View, InfoFilled, Delete, FolderOpened, DataLine, Connection } from '@element-plus/icons-vue';
+import ResourceChat from './recitation/ResourceChat.vue';import { ref, onMounted } from "vue";
+import { ElMessage, ElMessageBox } from "element-plus";
 import {
-  uploadDocument, getDocuments, deleteDocument, getKnowledgeStatus, indexDocument, cancelIndexDocument, getDocumentDownloadUrl, getDocumentPreviewUrl,
-  type RAGDocument, type KnowledgeStatus
-} from '../api/rag'
-
-// 学科列表（与推荐模块保持一致）
-const SUBJECTS = ['数学', '英语', '政治', '马原', '毛中特', '史纲', '思修', '时政', '专业课']
-
-const activeTab = ref('files')
-const resources = ref<RAGDocument[]>([])
-const searchQuery = ref('')
-const resourceChatRef = ref<InstanceType<typeof ResourceChat> | null>(null)
-const filterSubject = ref<string>('')           // 文件列表筛选学科
-const uploadSubject = ref<string>('未分类')      // 上传时选择的学科
-const showDetail = ref(false)
-const selectedResource = ref<RAGDocument | null>(null)
-const knowledgeStatus = ref<KnowledgeStatus | null>(null)
-const showKnowledgeSearchResult = ref(false)
-const fileInput = ref<HTMLInputElement | null>(null)
-const showUploadDialog = ref(false)
-const selectedFile = ref<File | null>(null)
-const uploading = ref(false)
-const uploadProgress = ref(0)
-const uploadProgressStatus = ref<'success' | 'exception' | 'warning' | undefined>(undefined)
-const indexing = ref(false)
-const indexProgress = ref(0)
-const indexProgressMessage = ref('准备开始')
-const indexProgressStatus = ref<'success' | 'exception' | 'warning' | undefined>(undefined)
-let progressEventSource: EventSource | null = null
-
-function getFileIcon(fileType: string) {
-  const icons: Record<string, string> = {
-    pdf: '📄',
-    doc: '📝',
-    docx: '📝',
-    txt: '📄',
-    md: '📝',
-    png: '🖼️',
-    jpg: '🖼️',
-    jpeg: '🖼️'
-  }
-  return icons[fileType] || '📁'
+  uploadDocument,
+  getDocuments,
+  deleteDocument,
+  getKnowledgeStatus,
+  indexDocument,
+  cancelIndexDocument,
+  getDocumentDownloadUrl,
+  getDocumentPreviewUrl
+} from "../api/rag";
+const SUBJECTS = ["数学", "英语", "政治", "马原", "毛中特", "史纲", "思修", "时政", "专业课"];
+const activeTab = ref("files");
+const resources = ref([]);
+const searchQuery = ref("");
+const resourceChatRef = ref(null);
+const filterSubject = ref("");
+const uploadSubject = ref("未分类");
+const showDetail = ref(false);
+const selectedResource = ref(null);
+const knowledgeStatus = ref(null);
+const showKnowledgeSearchResult = ref(false);
+const fileInput = ref(null);
+const showUploadDialog = ref(false);
+const selectedFile = ref(null);
+const uploading = ref(false);
+const uploadProgress = ref(0);
+const uploadProgressStatus = ref(void 0);
+const indexing = ref(false);
+const indexProgress = ref(0);
+const indexProgressMessage = ref("准备开始");
+const indexProgressStatus = ref(void 0);
+let progressEventSource = null;
+function getFileIcon(fileType) {
+  const icons = {
+    pdf: "📄",
+    doc: "📝",
+    docx: "📝",
+    txt: "📄",
+    md: "📝",
+    png: "🖼️",
+    jpg: "🖼️",
+    jpeg: "🖼️"
+  };
+  return icons[fileType] || "📁";
 }
-
-function getFileSize(bytes: number) {
-  if (bytes < 1024) return bytes + ' B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
+function getFileSize(bytes) {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }
-
-function formatDate(dateStr: string | null) {
-  if (!dateStr) return '-'
-  return new Date(dateStr).toLocaleString('zh-CN')
+function formatDate(dateStr) {
+  if (!dateStr) return "-";
+  return new Date(dateStr).toLocaleString("zh-CN");
 }
-
 async function loadResources() {
   try {
-    resources.value = await getDocuments(filterSubject.value || undefined)
-    await loadKnowledgeStatus()
+    resources.value = await getDocuments(filterSubject.value || void 0);
+    await loadKnowledgeStatus();
   } catch {
-    resources.value = []
+    resources.value = [];
   }
 }
-
 async function loadKnowledgeStatus() {
   try {
-    knowledgeStatus.value = await getKnowledgeStatus()
+    knowledgeStatus.value = await getKnowledgeStatus();
   } catch {
-    knowledgeStatus.value = null
+    knowledgeStatus.value = null;
   }
 }
-
 function triggerUpload() {
   if (fileInput.value) {
-    fileInput.value.click()
+    fileInput.value.click();
   }
 }
-
-function handleFileSelect(event: Event) {
-  const target = event.target as HTMLInputElement
+function handleFileSelect(event) {
+  const target = event.target;
   if (target.files && target.files.length > 0) {
-    selectedFile.value = target.files[0]
-    showUploadDialog.value = true
+    selectedFile.value = target.files[0];
+    showUploadDialog.value = true;
   }
 }
-
 async function confirmUpload() {
   if (!selectedFile.value) {
-    ElMessage.warning('请选择文件')
-    return
+    ElMessage.warning("请选择文件");
+    return;
   }
-  
-  uploading.value = true
-  uploadProgress.value = 0
-  uploadProgressStatus.value = undefined
+  uploading.value = true;
+  uploadProgress.value = 0;
+  uploadProgressStatus.value = void 0;
   try {
-    await uploadDocument(selectedFile.value, uploadSubject.value || undefined, (progress) => {
-      uploadProgress.value = progress
-    })
-    uploadProgress.value = 100
-    uploadProgressStatus.value = 'success'
-    ElMessage.success('上传成功')
-    await loadResources()
+    await uploadDocument(selectedFile.value, uploadSubject.value || void 0, (progress) => {
+      uploadProgress.value = progress;
+    });
+    uploadProgress.value = 100;
+    uploadProgressStatus.value = "success";
+    ElMessage.success("上传成功");
+    await loadResources();
     setTimeout(() => {
-      showUploadDialog.value = false
-      selectedFile.value = null
-      uploadProgress.value = 0
-      uploadProgressStatus.value = undefined
+      showUploadDialog.value = false;
+      selectedFile.value = null;
+      uploadProgress.value = 0;
+      uploadProgressStatus.value = void 0;
       if (fileInput.value) {
-        fileInput.value.value = ''
+        fileInput.value.value = "";
       }
-    }, 500)
-  } catch (error: any) {
-    uploadProgressStatus.value = 'exception'
-    const errorMsg = error.response?.data?.detail || 
-                     error.message || 
-                     '上传失败，请检查网络连接或文件大小'
-    ElMessage.error(errorMsg)
-    console.error('上传错误:', error)
+    }, 500);
+  } catch (error) {
+    uploadProgressStatus.value = "exception";
+    const errorMsg = error.response?.data?.detail || error.message || "上传失败，请检查网络连接或文件大小";
+    ElMessage.error(errorMsg);
+    console.error("上传错误:", error);
   } finally {
-    uploading.value = false
+    uploading.value = false;
   }
 }
-
 function cancelUpload() {
-  showUploadDialog.value = false
-  selectedFile.value = null
+  showUploadDialog.value = false;
+  selectedFile.value = null;
   if (fileInput.value) {
-    fileInput.value.value = ''
+    fileInput.value.value = "";
   }
 }
-
 async function handleSearch() {
-  showKnowledgeSearchResult.value = false
+  showKnowledgeSearchResult.value = false;
   try {
     if (searchQuery.value.trim()) {
-      const allResources = await getDocuments(filterSubject.value || undefined)
-      resources.value = allResources.filter(r =>
-        r.filename.toLowerCase().includes(searchQuery.value.trim().toLowerCase())
-      )
+      const allResources = await getDocuments(filterSubject.value || void 0);
+      resources.value = allResources.filter(
+        (r) => r.filename.toLowerCase().includes(searchQuery.value.trim().toLowerCase())
+      );
     } else {
-      await loadResources()
+      await loadResources();
     }
-  } catch (error: any) {
-    ElMessage.error(error.response?.data?.detail || '搜索失败')
-  }
-}
-
-function openDocument(resource: RAGDocument) {
-  if (resource.file_type === 'pdf') {
-    const url = getDocumentPreviewUrl(resource.id)
-    window.open(url, '_blank', 'noopener,noreferrer')
-  } else {
-    const url = getDocumentDownloadUrl(resource.id)
-    window.open(url, '_blank')
-  }
-}
-
-function openResourceDetail(resource: RAGDocument) {
-  selectedResource.value = resource
-  showDetail.value = true
-}
-
-async function handleDelete(id: number) {
-  try {
-    await ElMessageBox.confirm('确定要删除该资料吗？删除后将从知识库中移除', '确认删除', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    })
-    await deleteDocument(id)
-    ElMessage.success('删除成功')
-    await loadResources()
   } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error('删除失败')
+    ElMessage.error(error.response?.data?.detail || "搜索失败");
+  }
+}
+function openDocument(resource) {
+  if (resource.file_type === "pdf") {
+    const url = getDocumentPreviewUrl(resource.id);
+    window.open(url, "_blank", "noopener,noreferrer");
+  } else {
+    const url = getDocumentDownloadUrl(resource.id);
+    window.open(url, "_blank");
+  }
+}
+function openResourceDetail(resource) {
+  selectedResource.value = resource;
+  showDetail.value = true;
+}
+async function handleDelete(id) {
+  try {
+    await ElMessageBox.confirm("确定要删除该资料吗？删除后将从知识库中移除", "确认删除", {
+      confirmButtonText: "确定",
+      cancelButtonText: "取消",
+      type: "warning"
+    });
+    await deleteDocument(id);
+    ElMessage.success("删除成功");
+    await loadResources();
+  } catch (error) {
+    if (error !== "cancel") {
+      ElMessage.error("删除失败");
     }
   }
 }
-
 async function handleIndex() {
-  if (!selectedResource.value) return
-  
-  indexing.value = true
-  indexProgress.value = 0
-  indexProgressMessage.value = '准备开始'
-  indexProgressStatus.value = undefined
-  
-  const documentId = selectedResource.value.id
-  
+  if (!selectedResource.value) return;
+  indexing.value = true;
+  indexProgress.value = 0;
+  indexProgressMessage.value = "准备开始";
+  indexProgressStatus.value = void 0;
+  const documentId = selectedResource.value.id;
   try {
-    await indexDocument(documentId)
-  } catch (error: any) {
-    const errorMsg = error.response?.data?.detail || '启动索引失败'
-    ElMessage.error(errorMsg)
-    indexing.value = false
-    return
+    await indexDocument(documentId);
+  } catch (error) {
+    const errorMsg = error.response?.data?.detail || "启动索引失败";
+    ElMessage.error(errorMsg);
+    indexing.value = false;
+    return;
   }
-  
-  await new Promise<void>((resolve) => {
-    const token = localStorage.getItem('token')
-    progressEventSource = new EventSource(`/api/rag/documents/${documentId}/index/progress?token=${token}`)
-    
+  await new Promise((resolve) => {
+    const token = localStorage.getItem("token");
+    progressEventSource = new EventSource(`/api/rag/documents/${documentId}/index/progress?token=${token}`);
     progressEventSource.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data)
-        indexProgress.value = data.progress
-        indexProgressMessage.value = data.message
-        
-        if (data.status === 'completed') {
-          indexProgressStatus.value = 'success'
-          progressEventSource?.close()
-          resolve()
-        } else if (data.status === 'failed') {
-          indexProgressStatus.value = 'exception'
-          progressEventSource?.close()
-          resolve()
-        } else if (data.status === 'cancelled') {
-          indexProgressStatus.value = 'exception'
-          progressEventSource?.close()
-          resolve()
+        const data = JSON.parse(event.data);
+        indexProgress.value = data.progress;
+        indexProgressMessage.value = data.message;
+        if (data.status === "completed") {
+          indexProgressStatus.value = "success";
+          progressEventSource?.close();
+          resolve();
+        } else if (data.status === "failed") {
+          indexProgressStatus.value = "exception";
+          progressEventSource?.close();
+          resolve();
+        } else if (data.status === "cancelled") {
+          indexProgressStatus.value = "exception";
+          progressEventSource?.close();
+          resolve();
         }
       } catch (e) {
-        console.error('解析进度数据失败:', e)
+        console.error("解析进度数据失败:", e);
       }
-    }
-    
+    };
     progressEventSource.onerror = () => {
-      progressEventSource?.close()
-      resolve()
-    }
-  })
-  
+      progressEventSource?.close();
+      resolve();
+    };
+  });
   try {
-    if (indexProgressMessage.value === '用户已取消索引') {
-      ElMessage.info('索引已取消')
-    } else if (indexProgressStatus.value === 'success') {
-      ElMessage.success('索引创建成功')
-      showDetail.value = false
-      await loadResources()
-    } else if (indexProgressStatus.value === 'exception') {
-      ElMessage.error(indexProgressMessage.value || '索引失败')
+    if (indexProgressMessage.value === "用户已取消索引") {
+      ElMessage.info("索引已取消");
+    } else if (indexProgressStatus.value === "success") {
+      ElMessage.success("索引创建成功");
+      showDetail.value = false;
+      await loadResources();
+    } else if (indexProgressStatus.value === "exception") {
+      ElMessage.error(indexProgressMessage.value || "索引失败");
     }
-  } catch (error: any) {
-    console.error('索引完成后处理错误:', error)
+  } catch (error) {
+    console.error("索引完成后处理错误:", error);
   } finally {
-    indexing.value = false
-    progressEventSource?.close()
-    progressEventSource = null
+    indexing.value = false;
+    progressEventSource?.close();
+    progressEventSource = null;
   }
 }
-
 async function handleCancelIndex() {
-  if (!selectedResource.value) return
-  
+  if (!selectedResource.value) return;
   try {
-    const result = await cancelIndexDocument(selectedResource.value.id)
+    const result = await cancelIndexDocument(selectedResource.value.id);
     if (result.success) {
-      ElMessage.info('索引已取消')
+      ElMessage.info("索引已取消");
     } else {
-      ElMessage.warning(result.message || '没有正在进行的索引任务')
+      ElMessage.warning(result.message || "没有正在进行的索引任务");
     }
-  } catch (error: any) {
-    ElMessage.error('取消失败')
+  } catch (error) {
+    ElMessage.error("取消失败");
   }
 }
-
 onMounted(() => {
-  loadResources()
-})
+  loadResources();
+});
 </script>
 
 <style scoped>

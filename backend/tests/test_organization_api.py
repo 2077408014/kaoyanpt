@@ -19,7 +19,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.database import Base, get_db
 from app.core.security import create_access_token
 import app.models  # noqa: 注册全部模型
-from app.api import admin, teacher, institution, classes, auth
+from app.api import admin, teacher, institution, classes, auth, assistant
 from app.models.user import User
 from app.models.mistake import Mistake
 from app.models.study_stat import UserStudyStat
@@ -53,6 +53,7 @@ app.include_router(admin.router)
 app.include_router(teacher.router)
 app.include_router(institution.router)
 app.include_router(classes.router)
+app.include_router(assistant.router)
 app.dependency_overrides[get_db] = _override_get_db
 client = TestClient(app)
 
@@ -94,17 +95,23 @@ db.commit()
 db.refresh(s1); db.refresh(s2)
 
 # s1 的学习数据（在入班前就存在）
+# 注意：显式写入本地当前时间，避免 SQLite func.now() 存 UTC
+# 导致跨时区日凌晨跑测试时「今日」统计落空
+_now = datetime.now()
 db.add_all([
     Mistake(user_id=s1.id, subject="数学", knowledge_point="极限", error_type="概念错误",
-            difficulty="中等", mastery_level="生疏", question_text="题1", answer="a"),
+            difficulty="中等", mastery_level="生疏", question_text="题1", answer="a",
+            created_at=_now),
     Mistake(user_id=s1.id, subject="数学", knowledge_point="导数", error_type="计算错误",
-            difficulty="简单", mastery_level="掌握", question_text="题2", answer="b"),
+            difficulty="简单", mastery_level="掌握", question_text="题2", answer="b",
+            created_at=_now),
     Mistake(user_id=s1.id, subject="英语", knowledge_point="阅读", error_type="审题错误",
-            difficulty="困难", mastery_level="熟悉", question_text="题3", answer="c"),
+            difficulty="困难", mastery_level="熟悉", question_text="题3", answer="c",
+            created_at=_now),
     UserStudyStat(user_id=s1.id, study_date=date.today(), total_time=600,
                   words_studied=15, mistakes_added=3, questions_completed=4),
     StudySupervisionRecord(user_id=s1.id, session_id="ss", status="distracted",
-                           confidence=1.0, face_count=2),
+                           confidence=1.0, face_count=2, created_at=_now),
 ])
 db.commit()
 
@@ -658,6 +665,194 @@ def test_dual_role_staff_as_student():
     assert client.get("/api/teacher/classes", headers=H_TA).status_code == 200
 
 
+# ---------- AI 助手（mock DeepSeek 流，不依赖真实 API Key） ----------
+
+class _FakeStream:
+    status_code = 200
+
+    def __init__(self, lines):
+        self._lines = lines
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+    def iter_lines(self):
+        for line in self._lines:
+            yield line
+
+
+def _sse_chunk(content):
+    import json as _json
+    return "data: " + _json.dumps(
+        {"choices": [{"delta": {"content": content}}]}, ensure_ascii=False
+    )
+
+
+def test_assistant_teacher_stream_and_scope():
+    import json as _json
+    lines = [_sse_chunk("该班"), _sse_chunk("需要关注"), "data: [DONE]"]
+    orig_post = assistant.requests.post
+    orig_key = assistant.settings.AI_API_KEY
+    assistant.requests.post = lambda *a, **k: _FakeStream(lines)
+    assistant.settings.AI_API_KEY = "test-key"
+    try:
+        r = client.post("/api/assistant/teacher/chat", headers=H_TA, json={
+            "messages": [{"role": "user", "content": "分析班级"}],
+        })
+        assert r.status_code == 200
+        body = r.text
+        assert "该班" in body and "需要关注" in body and '"done": true' in body
+        # 教师上下文携带真实学生数据
+        from app.services.assistant_service import build_teacher_context
+        ctx = build_teacher_context(db, t_a)
+        assert s1.username in ctx
+
+        # 学生无权调用教师助手
+        assert client.post("/api/assistant/teacher/chat", headers=H_S1, json={
+            "messages": [{"role": "user", "content": "x"}],
+        }).status_code == 403
+
+        # 未配置 Key 时返回 error 事件而非 500
+        assistant.settings.AI_API_KEY = ""
+        r = client.post("/api/assistant/teacher/chat", headers=H_TA, json={
+            "messages": [{"role": "user", "content": "x"}],
+        })
+        assert r.status_code == 200 and "error" in r.text
+    finally:
+        assistant.requests.post = orig_post
+        assistant.settings.AI_API_KEY = orig_key
+
+
+def test_assistant_institution_action_and_stream():
+    from app.services.llm_service import llm_service
+
+    # 1) 明确创建意图 → 返回 action 卡片，且不真正建号
+    orig_gen = llm_service.generate_json
+    before = db.query(User).filter(User.email == "ai_new@e.com").count()
+    llm_service.generate_json = lambda *a, **k: {
+        "action": "create_teacher",
+        "args": {"username": "ainewtea", "email": "ai_new@e.com", "password": "123456"},
+    }
+    try:
+        r = client.post("/api/assistant/institution/chat", headers=H_IADM, json={
+            "messages": [{"role": "user", "content": "建个老师 ain ewtea/ai_new@e.com"}],
+        })
+        assert r.status_code == 200
+        action_events = [
+            l for l in r.text.splitlines()
+            if l.startswith("data:") and "create_teacher" in l
+        ]
+        assert action_events, r.text
+        assert db.query(User).filter(User.email == "ai_new@e.com").count() == before
+    finally:
+        llm_service.generate_json = orig_gen
+
+    # 2) 信息不全 → action=null，走正常流式回答
+    orig_post = assistant.requests.post
+    orig_key = assistant.settings.AI_API_KEY
+    llm_service.generate_json = lambda *a, **k: {"action": None}
+    assistant.requests.post = lambda *a, **k: _FakeStream([_sse_chunk("请提供用户名和邮箱"), "data: [DONE]"])
+    assistant.settings.AI_API_KEY = "test-key"
+    try:
+        r = client.post("/api/assistant/institution/chat", headers=H_IADM, json={
+            "messages": [{"role": "user", "content": "帮我创建一个老师账号"}],
+        })
+        assert r.status_code == 200
+        assert "create_teacher" not in r.text
+        assert "请提供用户名和邮箱" in r.text
+
+        # 3) 超管未绑定机构 → 友好错误
+        r = client.post("/api/assistant/institution/chat", headers=H_ADMIN, json={
+            "messages": [{"role": "user", "content": "分析"}],
+        })
+        assert "未绑定" in r.text or "仅对机构管理者" in r.text
+    finally:
+        llm_service.generate_json = orig_gen
+        assistant.requests.post = orig_post
+        assistant.settings.AI_API_KEY = orig_key
+
+    # 4) 意图识别服务异常（如未配置 Key）→ 必须收到 error 事件而非断流
+    def _raise_ve(*a, **k):
+        raise ValueError("API Key 未配置，请先在AI配置页面设置")
+
+    llm_service.generate_json = _raise_ve
+    try:
+        r = client.post("/api/assistant/institution/chat", headers=H_IADM, json={
+            "messages": [{"role": "user", "content": "分析一下"}],
+        })
+        assert r.status_code == 200
+        assert "API Key 未配置" in r.text and '"done": true' in r.text
+    finally:
+        llm_service.generate_json = orig_gen
+
+
+def test_assistant_history_and_user_ai_config():
+    """聊天历史落库/读取/清除，以及优先使用用户激活的 AI 配置。"""
+    from app.models.ai_chat import AIChatHistory
+    from app.models.ai_config import AIConfig
+
+    captured = {}
+    real_post = assistant.requests.post
+
+    def _capture_post(url, json=None, headers=None, **kw):
+        captured["url"] = url
+        captured["auth"] = (headers or {}).get("Authorization", "")
+        captured["model"] = (json or {}).get("model")
+        return _FakeStream([_sse_chunk("历史回答A"), "data: [DONE]"])
+
+    # 教师 t_a 激活自己的 AI 配置 → 请求应走该配置的 key/base_url/model
+    cfg = AIConfig(user_id=t_a.id, name="我的", provider="custom",
+                   api_key="user-key-1", base_url="https://user-llm.example/v1",
+                   model="user-model-x")
+    db.add(cfg)
+    db.commit()
+    db.refresh(cfg)
+    t_a.active_ai_config_id = cfg.id
+    db.commit()
+
+    orig_key = assistant.settings.AI_API_KEY
+    assistant.settings.AI_API_KEY = "server-key"
+    assistant.requests.post = _capture_post
+    try:
+        r = client.post("/api/assistant/teacher/chat", headers=H_TA, json={
+            "messages": [{"role": "user", "content": "记录一下"}],
+        })
+        assert r.status_code == 200 and '"done": true' in r.text
+        assert captured["url"] == "https://user-llm.example/v1/chat/completions"
+        assert captured["auth"] == "Bearer user-key-1"
+        assert captured["model"] == "user-model-x"
+
+        # 历史已落库且可通过接口读回（问题+回答）
+        hist = client.get("/api/assistant/teacher/history", headers=H_TA).json()
+        assert [h["message_type"] for h in hist[-2:]] == ["question", "answer"]
+        assert hist[-2]["content"] == "记录一下"
+        assert hist[-1]["content"] == "历史回答A"
+
+        # 他人（tB）读不到 tA 的历史
+        other = client.get("/api/assistant/teacher/history", headers=H_TB).json()
+        assert all(h["content"] != "记录一下" for h in other)
+
+        # 学生无权访问助手历史接口
+        assert client.get("/api/assistant/teacher/history", headers=H_S1).status_code == 403
+
+        # 清除后为空
+        assert client.delete("/api/assistant/teacher/history", headers=H_TA).status_code == 200
+        assert client.get("/api/assistant/teacher/history", headers=H_TA).json() == []
+        assert db.query(AIChatHistory).filter(
+            AIChatHistory.user_id == t_a.id,
+            AIChatHistory.agent_name == "teacher-assistant",
+        ).count() == 0
+    finally:
+        assistant.requests.post = real_post
+        assistant.settings.AI_API_KEY = orig_key
+        t_a.active_ai_config_id = None
+        db.delete(cfg)
+        db.commit()
+
+
 CASES = [
     test_admin_endpoints_require_super_admin,
     test_admin_create_org_class_teacher_and_duplicate,
@@ -673,9 +868,9 @@ CASES = [
     test_institution_admin_writes_scoped,
     test_institution_teacher_update_delete,
     test_announcement_crud_and_read_scope,
-    test_assignment_lifecycle_submit_grade_resubmit,
-    test_assignment_images,
-    test_dual_role_staff_as_student,
+    test_assistant_teacher_stream_and_scope,
+    test_assistant_institution_action_and_stream,
+    test_assistant_history_and_user_ai_config,
 ]
 
 if __name__ == "__main__":

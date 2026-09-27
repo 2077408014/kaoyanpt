@@ -25,36 +25,28 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { updateReminder, deleteReminder, type RecitationReminder } from '../../api/politics'
-
-defineProps<{
-  type: string
-  reminders: RecitationReminder[]
-}>()
-
-const emit = defineEmits<{
-  refresh: []
-}>()
-
-async function handleToggle(row: RecitationReminder) {
+<script setup>import { ElMessage, ElMessageBox } from "element-plus";
+import { updateReminder, deleteReminder } from "../../api/politics";
+defineProps({
+  type: { type: String, required: true },
+  reminders: { type: Array, required: true }
+});
+const emit = defineEmits(["refresh"]);
+async function handleToggle(row) {
   try {
-    await updateReminder(row.id, { enabled: row.enabled })
-    ElMessage.success(row.enabled ? '已开启' : '已关闭')
+    await updateReminder(row.id, { enabled: row.enabled });
+    ElMessage.success(row.enabled ? "已开启" : "已关闭");
   } catch {
-    ElMessage.success(row.enabled ? '已开启' : '已关闭')
+    ElMessage.success(row.enabled ? "已开启" : "已关闭");
   }
 }
-
-async function handleDelete(row: RecitationReminder) {
+async function handleDelete(row) {
   try {
-    await ElMessageBox.confirm('确定要删除这个提醒吗？', '提示', { type: 'warning' })
-    await deleteReminder(row.id)
-    ElMessage.success('删除成功')
-    emit('refresh')
+    await ElMessageBox.confirm("确定要删除这个提醒吗？", "提示", { type: "warning" });
+    await deleteReminder(row.id);
+    ElMessage.success("删除成功");
+    emit("refresh");
   } catch {
-    // 用户取消
   }
 }
 </script>

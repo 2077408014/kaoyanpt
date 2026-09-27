@@ -45,104 +45,95 @@
   </el-dialog>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, watch } from 'vue'
-import { getQuiz, answerQuiz, type QuizItem } from '@/api/words'
-
-const props = defineProps<{ visible: boolean; wordIds: number[] }>()
-
-const sessionId = ref('')
-const queue = ref<QuizItem[]>([])
-const current = ref<QuizItem | null>(null)
-const answered = ref(false)
-const feedback = ref<boolean | null>(null)
-const lastPick = ref(-1)
-const pendings = ref<number[]>([])
-const stat = reactive({ done: 0, correct: 0, total: 0 })
-
-function translateIndex(idx: number) {
-  return ['A', 'B', 'C', 'D'][idx] ?? idx
+<script setup>import { ref, reactive, watch } from "vue";
+import { getQuiz, answerQuiz } from "@/api/words";
+const props = defineProps({
+  visible: { type: Boolean, required: true },
+  wordIds: { type: Array, required: true }
+});
+const sessionId = ref("");
+const queue = ref([]);
+const current = ref(null);
+const answered = ref(false);
+const feedback = ref(null);
+const lastPick = ref(-1);
+const pendings = ref([]);
+const stat = reactive({ done: 0, correct: 0, total: 0 });
+function translateIndex(idx) {
+  return ["A", "B", "C", "D"][idx] ?? idx;
 }
-
-function optionText(idx: number) {
-  const opt = current.value?.options.find(o => o.index === idx)
-  return opt ? translateIndex(idx) + '. ' + opt.text : ''
+function optionText(idx) {
+  const opt = current.value?.options.find((o) => o.index === idx);
+  return opt ? translateIndex(idx) + ". " + opt.text : "";
 }
-
-function optionClass(idx: number) {
-  if (feedback.value === null) return ''
-  if (idx === current.value?.correct) return 'right'
-  if (idx === lastPick.value && feedback.value === false) return 'wrong'
-  return ''
+function optionClass(idx) {
+  if (feedback.value === null) return "";
+  if (idx === current.value?.correct) return "right";
+  if (idx === lastPick.value && feedback.value === false) return "wrong";
+  return "";
 }
-
-async function loadItems(ids: number[]) {
-  return await getQuiz(ids, Math.min(ids.length, 8))
+async function loadItems(ids) {
+  return await getQuiz(ids, Math.min(ids.length, 8));
 }
-
 async function start() {
-  sessionId.value = 'quiz_' + Date.now() + Math.random().toString(36).slice(2, 8)
-  stat.done = 0
-  stat.correct = 0
-  stat.total = 0
-  pendings.value = []
-  answered.value = false
-  feedback.value = null
-  queue.value = []
-  if (!props.wordIds.length) return
-  const items = await loadItems(props.wordIds)
-  stat.total = items.length
-  queue.value = [...items]
-  current.value = queue.value.shift() ?? null
+  sessionId.value = "quiz_" + Date.now() + Math.random().toString(36).slice(2, 8);
+  stat.done = 0;
+  stat.correct = 0;
+  stat.total = 0;
+  pendings.value = [];
+  answered.value = false;
+  feedback.value = null;
+  queue.value = [];
+  if (!props.wordIds.length) return;
+  const items = await loadItems(props.wordIds);
+  stat.total = items.length;
+  queue.value = [...items];
+  current.value = queue.value.shift() ?? null;
 }
-
-async function handleSelect(idx: number) {
-  if (answered.value || !current.value) return
-  answered.value = true
-  lastPick.value = idx
-  const correct = idx === current.value.correct
-  feedback.value = correct
-  stat.done++
-  if (correct) stat.correct++
+async function handleSelect(idx) {
+  if (answered.value || !current.value) return;
+  answered.value = true;
+  lastPick.value = idx;
+  const correct = idx === current.value.correct;
+  feedback.value = correct;
+  stat.done++;
+  if (correct) stat.correct++;
   try {
-    await answerQuiz({ word_id: current.value.word_id, selected: idx, correct, session_id: sessionId.value })
+    await answerQuiz({ word_id: current.value.word_id, selected: idx, correct, session_id: sessionId.value });
   } catch {
-    // 网络失败不阻断交互
   }
   if (!correct) {
-    pendings.value.push(current.value.word_id)
+    pendings.value.push(current.value.word_id);
   }
 }
-
 async function next() {
-  feedback.value = null
-  answered.value = false
-  lastPick.value = -1
+  feedback.value = null;
+  answered.value = false;
+  lastPick.value = -1;
   if (queue.value.length > 0) {
-    current.value = queue.value.shift() ?? null
-    return
+    current.value = queue.value.shift() ?? null;
+    return;
   }
   if (pendings.value.length > 0) {
-    const ids = [...pendings.value]
-    pendings.value = []
-    const items = await loadItems(ids)
-    stat.total += items.length
-    queue.value = [...items]
-    current.value = queue.value.shift() ?? null
-    return
+    const ids = [...pendings.value];
+    pendings.value = [];
+    const items = await loadItems(ids);
+    stat.total += items.length;
+    queue.value = [...items];
+    current.value = queue.value.shift() ?? null;
+    return;
   }
-  current.value = null
+  current.value = null;
 }
-
 watch(() => props.visible, async (v) => {
   if (v) {
-    await start()
+    await start();
   } else {
-    queue.value = []
-    current.value = null
-    pendings.value = []
+    queue.value = [];
+    current.value = null;
+    pendings.value = [];
   }
-})
+});
 </script>
 
 <style scoped>

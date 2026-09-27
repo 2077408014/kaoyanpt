@@ -30,52 +30,46 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { adminApi, type Institution } from '../../api/organization'
-
-const loading = ref(false)
-const saving = ref(false)
-const institutions = ref<Institution[]>([])
-const dialogVisible = ref(false)
-const name = ref('')
-
-function formatTime(t?: string) {
-  return t ? new Date(t).toLocaleString('zh-CN', { hour12: false }) : '-'
+<script setup>import { ref, onMounted } from "vue";
+import { ElMessage } from "element-plus";
+import { adminApi } from "../../api/organization";
+const loading = ref(false);
+const saving = ref(false);
+const institutions = ref([]);
+const dialogVisible = ref(false);
+const name = ref("");
+function formatTime(t) {
+  return t ? new Date(t).toLocaleString("zh-CN", { hour12: false }) : "-";
 }
-
 async function load() {
-  loading.value = true
+  loading.value = true;
   try {
-    institutions.value = await adminApi.listInstitutions()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '加载失败')
+    institutions.value = await adminApi.listInstitutions();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "加载失败");
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
-
 async function handleCreate() {
   if (!name.value.trim()) {
-    ElMessage.warning('请输入机构名称')
-    return
+    ElMessage.warning("请输入机构名称");
+    return;
   }
-  saving.value = true
+  saving.value = true;
   try {
-    await adminApi.createInstitution(name.value.trim())
-    ElMessage.success('机构创建成功')
-    dialogVisible.value = false
-    name.value = ''
-    await load()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '创建失败')
+    await adminApi.createInstitution(name.value.trim());
+    ElMessage.success("机构创建成功");
+    dialogVisible.value = false;
+    name.value = "";
+    await load();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "创建失败");
   } finally {
-    saving.value = false
+    saving.value = false;
   }
 }
-
-onMounted(load)
+onMounted(load);
 </script>
 
 <style scoped>

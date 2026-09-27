@@ -57,29 +57,24 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { institutionApi, type ClassSummary } from '../../api/organization'
-
-const loading = ref(false)
-const classes = ref<ClassSummary[]>([])
-
-// 整数不带小数，非整数保留 1 位
-function fmt(v: number): string {
-  return Number.isInteger(v) ? String(v) : v.toFixed(1)
+<script setup>import { ref, onMounted } from "vue";
+import { ElMessage } from "element-plus";
+import { institutionApi } from "../../api/organization";
+const loading = ref(false);
+const classes = ref([]);
+function fmt(v) {
+  return Number.isInteger(v) ? String(v) : v.toFixed(1);
 }
-
 onMounted(async () => {
-  loading.value = true
+  loading.value = true;
   try {
-    classes.value = await institutionApi.classes()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '加载失败')
+    classes.value = await institutionApi.classes();
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "加载失败");
   } finally {
-    loading.value = false
+    loading.value = false;
   }
-})
+});
 </script>
 
 <style scoped>

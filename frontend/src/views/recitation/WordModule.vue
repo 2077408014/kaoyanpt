@@ -325,22 +325,27 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { ElMessage } from 'element-plus'
-import { VideoPlay, Upload } from '@element-plus/icons-vue'
+<script setup>
+import { VideoPlay, Upload } from '@element-plus/icons-vue';
+import QuizDialog from '@/views/recitation/QuizDialog.vue';import { ref, reactive, computed, onMounted, watch } from "vue";
+import { ElMessage } from "element-plus";
 import {
-  getWordStats, getTodayWords, getWordList,
-  studyWord, getStudyPlan, saveStudyPlan, getWordCategories, uploadWordbook,
-  getReviewWordsByRange, getStudySession, saveStudySession, clearStudySession,
-  type Word, type UserWord, type TodayWordsResponse, type StudySession, type RoundQueueItem
-} from '../../api/words'
-import { useSpeech } from '@/composables/useSpeech'
-import QuizDialog from '@/views/recitation/QuizDialog.vue'
-
-const { speak: speakWord } = useSpeech()
-
-const subTab = ref('today')
+  getWordStats,
+  getTodayWords,
+  getWordList,
+  studyWord,
+  getStudyPlan,
+  saveStudyPlan,
+  getWordCategories,
+  uploadWordbook,
+  getReviewWordsByRange,
+  getStudySession,
+  saveStudySession,
+  clearStudySession
+} from "../../api/words";
+import { useSpeech } from "@/composables/useSpeech";
+const { speak: speakWord } = useSpeech();
+const subTab = ref("today");
 const wordStats = reactive({
   total: 0,
   studied: 0,
@@ -348,327 +353,279 @@ const wordStats = reactive({
   today: 0,
   has_wordbook: false,
   review_due: 0
-})
-const uploadingWordbook = ref(false)
-const wordbookInput = ref<HTMLInputElement | null>(null)
-
-// 计划配置
-const dailyCount = ref(20)
-const batchSize = ref(20)
-const studyMode = ref('mixed')
-const selectedCategory = ref<string>('')
-const categories = ref<string[]>([])
-
-// 今日单词数据
-const todayWords = ref<Word[]>([])
-const reviewCount = ref(0)
-const newCount = ref(0)
-
-// 轮次状态
-const currentRound = ref(0)
-const totalRounds = ref(0)
-const roundQueue = ref<RoundQueueItem[]>([])
-const roundStats = reactive({ forget: 0, hard: 0, good: 0, known: 0 })
-const globalIndex = ref(0)
-const totalWordsToday = ref(0)
-const completedRounds = ref(0)
-const allRoundsComplete = ref(false)
-
-// UI 状态
-const showMeaning = ref(false)
-const roundCompleteVisible = ref(false)
-const resumeVisible = ref(false)
-const savedSession = ref<StudySession | null>(null)
-
-// 统计刷新防抖
-let statsRefreshTimer: ReturnType<typeof setTimeout> | null = null
-function scheduleStatsRefresh(delay = 2000) {
+});
+const uploadingWordbook = ref(false);
+const wordbookInput = ref(null);
+const dailyCount = ref(20);
+const batchSize = ref(20);
+const studyMode = ref("mixed");
+const selectedCategory = ref("");
+const categories = ref([]);
+const todayWords = ref([]);
+const reviewCount = ref(0);
+const newCount = ref(0);
+const currentRound = ref(0);
+const totalRounds = ref(0);
+const roundQueue = ref([]);
+const roundStats = reactive({ forget: 0, hard: 0, good: 0, known: 0 });
+const globalIndex = ref(0);
+const totalWordsToday = ref(0);
+const completedRounds = ref(0);
+const allRoundsComplete = ref(false);
+const showMeaning = ref(false);
+const roundCompleteVisible = ref(false);
+const resumeVisible = ref(false);
+const savedSession = ref(null);
+let statsRefreshTimer = null;
+function scheduleStatsRefresh(delay = 2e3) {
   if (statsRefreshTimer) {
-    clearTimeout(statsRefreshTimer)
+    clearTimeout(statsRefreshTimer);
   }
   statsRefreshTimer = setTimeout(async () => {
-    statsRefreshTimer = null
-    await loadStats(selectedCategory.value || undefined)
-  }, delay)
+    statsRefreshTimer = null;
+    await loadStats(selectedCategory.value || void 0);
+  }, delay);
 }
-
-// 单词列表
-const wordList = ref<UserWord[]>([])
-const searchKeyword = ref('')
-const filterLevel = ref('')
-const currentPage = ref(1)
-const pageSize = ref(20)
-const totalWords = ref(0)
-
-// 复习列表
-const reviewWords = ref<Word[]>([])
-const reviewRange = ref('today')
-
+const wordList = ref([]);
+const searchKeyword = ref("");
+const filterLevel = ref("");
+const currentPage = ref(1);
+const pageSize = ref(20);
+const totalWords = ref(0);
+const reviewWords = ref([]);
+const reviewRange = ref("today");
 const currentSourceLabel = computed(() => {
-  const cat = selectedCategory.value
-  if (!cat || cat === '全部') return '系统+词书'
-  if (cat === '我的词书') return '我的词书'
-  return cat
-})
-
-const currentWord = computed<RoundQueueItem | null>(() => {
-  return roundQueue.value.length > 0 ? roundQueue.value[0] : null
-})
-
+  const cat = selectedCategory.value;
+  if (!cat || cat === "全部") return "系统+词书";
+  if (cat === "我的词书") return "我的词书";
+  return cat;
+});
+const currentWord = computed(() => {
+  return roundQueue.value.length > 0 ? roundQueue.value[0] : null;
+});
 const currentRoundIndex = computed(() => {
-  if (currentRound.value <= 0 || currentRound.value > totalRounds.value) return 0
-  const roundStart = (currentRound.value - 1) * batchSize.value
-  return globalIndex.value - roundStart
-})
-
+  if (currentRound.value <= 0 || currentRound.value > totalRounds.value) return 0;
+  const roundStart = (currentRound.value - 1) * batchSize.value;
+  return globalIndex.value - roundStart;
+});
 const currentRoundSize = computed(() => {
-  if (currentRound.value <= 0 || currentRound.value > totalRounds.value) return 0
-  const start = (currentRound.value - 1) * batchSize.value
-  const end = Math.min(start + batchSize.value, totalWordsToday.value)
-  return end - start
-})
-
-function getMasteryTagType(level: string) {
+  if (currentRound.value <= 0 || currentRound.value > totalRounds.value) return 0;
+  const start = (currentRound.value - 1) * batchSize.value;
+  const end = Math.min(start + batchSize.value, totalWordsToday.value);
+  return end - start;
+});
+function getMasteryTagType(level) {
   switch (level) {
-    case '未学习': return 'default'
-    case '陌生': return 'danger'
-    case '认识': return 'warning'
-    case '熟悉': return 'info'
-    case '掌握': return 'success'
-    default: return 'default'
+    case "未学习":
+      return "default";
+    case "陌生":
+      return "danger";
+    case "认识":
+      return "warning";
+    case "熟悉":
+      return "info";
+    case "掌握":
+      return "success";
+    default:
+      return "default";
   }
 }
-
-async function loadStats(category?: string) {
+async function loadStats(category) {
   try {
-    const stats = await getWordStats(category)
-    Object.assign(wordStats, stats)
+    const stats = await getWordStats(category);
+    Object.assign(wordStats, stats);
   } catch {
-    wordStats.total = 0
-    wordStats.studied = 0
-    wordStats.mastered = 0
-    wordStats.today = 0
-    wordStats.review_due = 0
+    wordStats.total = 0;
+    wordStats.studied = 0;
+    wordStats.mastered = 0;
+    wordStats.today = 0;
+    wordStats.review_due = 0;
   }
 }
-
 async function loadPlan() {
   try {
-    const plan = await getStudyPlan()
-    dailyCount.value = plan.daily_word_count
-    batchSize.value = plan.batch_size ?? 20
-    studyMode.value = plan.study_mode ?? 'mixed'
-    if (plan.word_category !== null && plan.word_category !== undefined) {
-      selectedCategory.value = plan.word_category
+    const plan = await getStudyPlan();
+    dailyCount.value = plan.daily_word_count;
+    batchSize.value = plan.batch_size ?? 20;
+    studyMode.value = plan.study_mode ?? "mixed";
+    if (plan.word_category !== null && plan.word_category !== void 0) {
+      selectedCategory.value = plan.word_category;
     }
   } catch {
-    dailyCount.value = 20
-    batchSize.value = 20
-    studyMode.value = 'mixed'
+    dailyCount.value = 20;
+    batchSize.value = 20;
+    studyMode.value = "mixed";
   }
 }
-
 async function loadCategories() {
   try {
-    const result = await getWordCategories()
-    categories.value = result.categories
+    const result = await getWordCategories();
+    categories.value = result.categories;
   } catch {
-    categories.value = ['CET-4', 'CET-6', '考研']
+    categories.value = ["CET-4", "CET-6", "考研"];
   }
 }
-
 async function savePlan() {
   try {
-    await saveStudyPlan(dailyCount.value, selectedCategory.value || undefined, batchSize.value, studyMode.value)
-    ElMessage.success('背诵配置已保存')
-    await loadTodayWords()
+    await saveStudyPlan(dailyCount.value, selectedCategory.value || void 0, batchSize.value, studyMode.value);
+    ElMessage.success("背诵配置已保存");
+    await loadTodayWords();
   } catch {
-    ElMessage.success(`配置已保存：每日${dailyCount.value}词，每轮${batchSize.value}词`)
-    await loadTodayWords()
+    ElMessage.success(`配置已保存：每日${dailyCount.value}词，每轮${batchSize.value}词`);
+    await loadTodayWords();
   }
 }
-
 async function loadTodayWords() {
   try {
-    const category = selectedCategory.value || undefined
-    const result: TodayWordsResponse = await getTodayWords(dailyCount.value, category)
-
-    // 会话 ID：整页加载周期内保持稳定，用于背诵记录分组
+    const category = selectedCategory.value || void 0;
+    const result = await getTodayWords(dailyCount.value, category);
     if (!activeSessionId.value) {
-      activeSessionId.value = 'card_' + Date.now() + Math.random().toString(36).slice(2, 8)
+      activeSessionId.value = "card_" + Date.now() + Math.random().toString(36).slice(2, 8);
     }
-
-    // 根据背诵模式排序单词
-    if (studyMode.value === 'new_first') {
-      todayWords.value = [...result.new, ...result.review]
+    if (studyMode.value === "new_first") {
+      todayWords.value = [...result.new, ...result.review];
     } else {
-      todayWords.value = [...result.review, ...result.new]
+      todayWords.value = [...result.review, ...result.new];
     }
-
-    reviewCount.value = result.review_count
-    newCount.value = result.new_count
-    totalWordsToday.value = result.total_today
-    globalIndex.value = 0
-    completedRounds.value = 0
-    allRoundsComplete.value = false
-
-    // 构建轮次
-    buildRounds()
-
-    // 启动第一轮
+    reviewCount.value = result.review_count;
+    newCount.value = result.new_count;
+    totalWordsToday.value = result.total_today;
+    globalIndex.value = 0;
+    completedRounds.value = 0;
+    allRoundsComplete.value = false;
+    buildRounds();
     if (totalRounds.value > 0) {
-      await startRound(1)
+      await startRound(1);
     } else {
-      roundQueue.value = []
+      roundQueue.value = [];
     }
   } catch {
     todayWords.value = [
-      { id: 1, word: 'abandon', phonetic: '/əˈbændən/', meaning: 'v. 放弃，抛弃', example_sentence: 'He decided to abandon the project.', difficulty: 1, frequency: 95, exam_requirement: '高频词', type: 'new' },
-      { id: 2, word: 'ability', phonetic: '/əˈbɪləti/', meaning: 'n. 能力，才能', example_sentence: 'She has the ability to learn quickly.', difficulty: 1, frequency: 88, exam_requirement: '考纲词', type: 'new' },
-      { id: 3, word: 'absolute', phonetic: '/ˈæbsəluːt/', meaning: 'adj. 绝对的，完全的', example_sentence: 'This is an absolute truth.', difficulty: 2, frequency: 75, exam_requirement: '考纲词', type: 'new' },
-    ]
-    reviewCount.value = 0
-    newCount.value = todayWords.value.length
-    totalWordsToday.value = todayWords.value.length
-    buildRounds()
-    if (totalRounds.value > 0) await startRound(1)
+      { id: 1, word: "abandon", phonetic: "/əˈbændən/", meaning: "v. 放弃，抛弃", example_sentence: "He decided to abandon the project.", difficulty: 1, frequency: 95, exam_requirement: "高频词", type: "new" },
+      { id: 2, word: "ability", phonetic: "/əˈbɪləti/", meaning: "n. 能力，才能", example_sentence: "She has the ability to learn quickly.", difficulty: 1, frequency: 88, exam_requirement: "考纲词", type: "new" },
+      { id: 3, word: "absolute", phonetic: "/ˈæbsəluːt/", meaning: "adj. 绝对的，完全的", example_sentence: "This is an absolute truth.", difficulty: 2, frequency: 75, exam_requirement: "考纲词", type: "new" }
+    ];
+    reviewCount.value = 0;
+    newCount.value = todayWords.value.length;
+    totalWordsToday.value = todayWords.value.length;
+    buildRounds();
+    if (totalRounds.value > 0) await startRound(1);
   }
 }
-
 function buildRounds() {
   if (!todayWords.value.length) {
-    totalRounds.value = 0
-    return
+    totalRounds.value = 0;
+    return;
   }
-
-  const total = todayWords.value.length
-  totalRounds.value = Math.ceil(total / batchSize.value)
+  const total = todayWords.value.length;
+  totalRounds.value = Math.ceil(total / batchSize.value);
 }
-
-async function startRound(roundNum: number) {
+async function startRound(roundNum) {
   if (roundNum > totalRounds.value) {
-    allRoundsComplete.value = true
-    roundQueue.value = []
-    currentRound.value = totalRounds.value
-    await clearStudySession()
-    return
+    allRoundsComplete.value = true;
+    roundQueue.value = [];
+    currentRound.value = totalRounds.value;
+    await clearStudySession();
+    return;
   }
-
-  currentRound.value = roundNum
-  const start = (roundNum - 1) * batchSize.value
-  const end = Math.min(start + batchSize.value, totalWordsToday.value)
-  const roundWords = todayWords.value.slice(start, end)
-
-  roundQueue.value = roundWords.map(w => ({
+  currentRound.value = roundNum;
+  const start = (roundNum - 1) * batchSize.value;
+  const end = Math.min(start + batchSize.value, totalWordsToday.value);
+  const roundWords = todayWords.value.slice(start, end);
+  roundQueue.value = roundWords.map((w) => ({
     wordId: w.id,
     word: w.word,
     phonetic: w.phonetic,
     meaning: w.meaning,
     example_sentence: w.example_sentence,
     exam_requirement: w.exam_requirement,
-    type: w.type || 'new',
+    type: w.type || "new",
     repeatCount: 0
-  }))
-
-  roundStats.forget = 0
-  roundStats.hard = 0
-  roundStats.good = 0
-  roundStats.known = 0
-  showMeaning.value = false
-  allRoundsComplete.value = false
-
-  await saveCurrentSession()
+  }));
+  roundStats.forget = 0;
+  roundStats.hard = 0;
+  roundStats.good = 0;
+  roundStats.known = 0;
+  showMeaning.value = false;
+  allRoundsComplete.value = false;
+  await saveCurrentSession();
 }
-
-async function markResult(result: string) {
-  if (!currentWord.value) return
-
-  const word = currentWord.value
-
+async function markResult(result) {
+  if (!currentWord.value) return;
+  const word = currentWord.value;
   try {
     const updated = await studyWord(word.wordId, result, {
-      session_id: activeSessionId.value || undefined,
-      source: 'card'
-    })
-    const statKey = result === '认识' ? 'known' : result === '一般' ? 'good' : result === '困难' ? 'hard' : 'forget'
-    roundStats[statKey]++
-    const item = roundQueue.value.shift()
-    if (updated?.srs_status !== 'reviewed') {
+      session_id: activeSessionId.value || void 0,
+      source: "card"
+    });
+    const statKey = result === "认识" ? "known" : result === "一般" ? "good" : result === "困难" ? "hard" : "forget";
+    roundStats[statKey]++;
+    const item = roundQueue.value.shift();
+    if (updated?.srs_status !== "reviewed") {
       if (item) {
-        item.repeatCount++
-        roundQueue.value.push(item)
+        item.repeatCount++;
+        roundQueue.value.push(item);
       }
     } else {
-      globalIndex.value++
+      globalIndex.value++;
     }
   } catch {
-    const item = roundQueue.value.shift()
+    const item = roundQueue.value.shift();
     if (item) {
-      item.repeatCount++
-      roundQueue.value.push(item)
+      item.repeatCount++;
+      roundQueue.value.push(item);
     }
   }
-
-  scheduleStatsRefresh()
-  showMeaning.value = false
-  await saveCurrentSession()
-
+  scheduleStatsRefresh();
+  showMeaning.value = false;
+  await saveCurrentSession();
   if (roundQueue.value.length === 0) {
-    completedRounds.value++
-    roundCompleteVisible.value = true
+    completedRounds.value++;
+    roundCompleteVisible.value = true;
   }
 }
-
 async function startNextRound() {
-  roundCompleteVisible.value = false
-  // 轮次切换时立即刷新统计，保证跨轮数据准确
+  roundCompleteVisible.value = false;
   if (statsRefreshTimer) {
-    clearTimeout(statsRefreshTimer)
-    statsRefreshTimer = null
+    clearTimeout(statsRefreshTimer);
+    statsRefreshTimer = null;
   }
-  await loadStats(selectedCategory.value || undefined)
-  startRound(currentRound.value + 1)
+  await loadStats(selectedCategory.value || void 0);
+  startRound(currentRound.value + 1);
 }
-
 async function exitStudy() {
-  roundCompleteVisible.value = false
-  allRoundsComplete.value = true
-  roundQueue.value = []
-  // 退出时取消未执行的防抖刷新，并立即同步一次统计
+  roundCompleteVisible.value = false;
+  allRoundsComplete.value = true;
+  roundQueue.value = [];
   if (statsRefreshTimer) {
-    clearTimeout(statsRefreshTimer)
-    statsRefreshTimer = null
+    clearTimeout(statsRefreshTimer);
+    statsRefreshTimer = null;
   }
-  await loadStats(selectedCategory.value || undefined)
-  await clearStudySession()
-  ElMessage.success('背诵已结束，进度已保存')
+  await loadStats(selectedCategory.value || void 0);
+  await clearStudySession();
+  ElMessage.success("背诵已结束，进度已保存");
 }
-
 function restartToday() {
-  allRoundsComplete.value = false
-  loadTodayWords()
+  allRoundsComplete.value = false;
+  loadTodayWords();
 }
-
-const activeSessionId = ref('')
-
-const quizVisible = ref(false)
-const quizWordIds = ref<number[]>([])
-
+const activeSessionId = ref("");
+const quizVisible = ref(false);
+const quizWordIds = ref([]);
 function startRoundQuiz() {
-  const start = (currentRound.value - 1) * batchSize.value
-  const end = Math.min(start + batchSize.value, totalWordsToday.value)
-  quizWordIds.value = todayWords.value.slice(start, end).map(w => w.id).filter(Boolean)
-  roundCompleteVisible.value = false
+  const start = (currentRound.value - 1) * batchSize.value;
+  const end = Math.min(start + batchSize.value, totalWordsToday.value);
+  quizWordIds.value = todayWords.value.slice(start, end).map((w) => w.id).filter(Boolean);
+  roundCompleteVisible.value = false;
   if (quizWordIds.value.length) {
-    quizVisible.value = true
+    quizVisible.value = true;
   } else {
-    ElMessage.warning('本轮没有单词可测验')
+    ElMessage.warning("本轮没有单词可测验");
   }
 }
-
 async function saveCurrentSession() {
-  if (totalWordsToday.value === 0) return
-  const session: StudySession = {
+  if (totalWordsToday.value === 0) return;
+  const session = {
     current_round: currentRound.value,
     total_rounds: totalRounds.value,
     round_queue: roundQueue.value,
@@ -677,38 +634,32 @@ async function saveCurrentSession() {
     total_words_today: totalWordsToday.value,
     study_mode: studyMode.value,
     batch_size: batchSize.value,
-    all_word_ids: todayWords.value.map(w => w.id),
+    all_word_ids: todayWords.value.map((w) => w.id),
     completed_rounds: completedRounds.value,
     category: selectedCategory.value || null
-  }
+  };
   try {
-    await saveStudySession(session)
+    await saveStudySession(session);
   } catch {
-    // 忽略保存错误
   }
 }
-
 async function checkAndResumeSession() {
   try {
-    const session = await getStudySession()
+    const session = await getStudySession();
     if (session && session.total_words_today > 0 && session.category === (selectedCategory.value || null)) {
-      savedSession.value = session
-      resumeVisible.value = true
+      savedSession.value = session;
+      resumeVisible.value = true;
     }
   } catch {
-    // 无保存的进度
   }
 }
-
 async function resumeSession() {
-  resumeVisible.value = false
-  const session = savedSession.value
-  if (!session) return
-
-  // 恢复状态
-  currentRound.value = session.current_round
-  totalRounds.value = session.total_rounds
-  roundQueue.value = session.round_queue.map((item: any) => ({
+  resumeVisible.value = false;
+  const session = savedSession.value;
+  if (!session) return;
+  currentRound.value = session.current_round;
+  totalRounds.value = session.total_rounds;
+  roundQueue.value = session.round_queue.map((item) => ({
     wordId: item.wordId || item.word_id,
     word: item.word,
     phonetic: item.phonetic,
@@ -717,118 +668,104 @@ async function resumeSession() {
     exam_requirement: item.exam_requirement,
     type: item.type,
     repeatCount: item.repeatCount || 0
-  }))
-  roundStats.forget = session.round_stats?.forget ?? 0
-  roundStats.hard = session.round_stats?.hard ?? 0
-  roundStats.good = session.round_stats?.good ?? 0
-  roundStats.known = session.round_stats?.known ?? 0
-  globalIndex.value = session.global_index
-  totalWordsToday.value = session.total_words_today
-  completedRounds.value = session.completed_rounds || 0
-  studyMode.value = session.study_mode
-  batchSize.value = session.batch_size
-  allRoundsComplete.value = false
-
-  // 需要重新加载 todayWords 以恢复单词数据
+  }));
+  roundStats.forget = session.round_stats?.forget ?? 0;
+  roundStats.hard = session.round_stats?.hard ?? 0;
+  roundStats.good = session.round_stats?.good ?? 0;
+  roundStats.known = session.round_stats?.known ?? 0;
+  globalIndex.value = session.global_index;
+  totalWordsToday.value = session.total_words_today;
+  completedRounds.value = session.completed_rounds || 0;
+  studyMode.value = session.study_mode;
+  batchSize.value = session.batch_size;
+  allRoundsComplete.value = false;
   try {
-    const category = selectedCategory.value || undefined
-    const result: TodayWordsResponse = await getTodayWords(dailyCount.value, category)
-    todayWords.value = [...result.review, ...result.new]
+    const category = selectedCategory.value || void 0;
+    const result = await getTodayWords(dailyCount.value, category);
+    todayWords.value = [...result.review, ...result.new];
   } catch {
-    // 使用已有数据
   }
-
-  ElMessage.success('已恢复背诵进度')
+  ElMessage.success("已恢复背诵进度");
 }
-
 async function discardSession() {
-  resumeVisible.value = false
-  await clearStudySession()
-  await loadTodayWords()
+  resumeVisible.value = false;
+  await clearStudySession();
+  await loadTodayWords();
 }
-
 async function loadReviewWords() {
   try {
-    const result = await getReviewWordsByRange(reviewRange.value)
-    reviewWords.value = result.words.map(w => ({ ...w, type: 'review' }))
+    const result = await getReviewWordsByRange(reviewRange.value);
+    reviewWords.value = result.words.map((w) => ({ ...w, type: "review" }));
   } catch {
-    reviewWords.value = []
+    reviewWords.value = [];
   }
 }
-
 async function loadWordList() {
   try {
     const result = await getWordList({
       page: currentPage.value,
       page_size: pageSize.value,
-      mastery_level: filterLevel.value || undefined,
-      keyword: searchKeyword.value || undefined,
-      category: selectedCategory.value || undefined
-    })
-    wordList.value = result.items
-    totalWords.value = result.total
+      mastery_level: filterLevel.value || void 0,
+      keyword: searchKeyword.value || void 0,
+      category: selectedCategory.value || void 0
+    });
+    wordList.value = result.items;
+    totalWords.value = result.total;
   } catch {
-    wordList.value = []
-    totalWords.value = 0
+    wordList.value = [];
+    totalWords.value = 0;
   }
 }
-
 onMounted(async () => {
-  await loadPlan()
-  await loadStats(selectedCategory.value || undefined)
-  await loadCategories()
-  await loadWordList()
-  await checkAndResumeSession()
+  await loadPlan();
+  await loadStats(selectedCategory.value || void 0);
+  await loadCategories();
+  await loadWordList();
+  await checkAndResumeSession();
   if (!resumeVisible.value) {
-    await loadTodayWords()
+    await loadTodayWords();
   }
-})
-
+});
 watch(dailyCount, (newVal) => {
   if (batchSize.value > newVal) {
-    batchSize.value = newVal
+    batchSize.value = newVal;
   }
-})
-
+});
 watch(subTab, async (newTab) => {
-  if (newTab === 'review') {
-    await loadReviewWords()
+  if (newTab === "review") {
+    await loadReviewWords();
   }
-})
-
+});
 async function handleCategoryChange() {
-  const cat = selectedCategory.value || undefined
-  await loadTodayWords()
-  await loadStats(cat)
-  await loadWordList()
-  await savePlan()
+  const cat = selectedCategory.value || void 0;
+  await loadTodayWords();
+  await loadStats(cat);
+  await loadWordList();
+  await savePlan();
 }
-
 function triggerWordbookUpload() {
-  wordbookInput.value?.click()
+  wordbookInput.value?.click();
 }
-
-async function handleWordbookSelect(event: Event) {
-  const target = event.target as HTMLInputElement
-  if (!target.files || target.files.length === 0) return
-  const file = target.files[0]
-
-  uploadingWordbook.value = true
+async function handleWordbookSelect(event) {
+  const target = event.target;
+  if (!target.files || target.files.length === 0) return;
+  const file = target.files[0];
+  uploadingWordbook.value = true;
   try {
-    const result = await uploadWordbook(file)
-    ElMessage.success(result.message)
-    selectedCategory.value = ''
-    await loadStats()
-    await loadCategories()
-    await loadTodayWords()
-    await loadWordList()
-  } catch (error: any) {
-    const msg = error.response?.data?.detail || error.message || '词书上传失败'
-    ElMessage.error(msg)
+    const result = await uploadWordbook(file);
+    ElMessage.success(result.message);
+    selectedCategory.value = "";
+    await loadStats();
+    await loadCategories();
+    await loadTodayWords();
+    await loadWordList();
+  } catch (error) {
+    const msg = error.response?.data?.detail || error.message || "词书上传失败";
+    ElMessage.error(msg);
   } finally {
-    uploadingWordbook.value = false
+    uploadingWordbook.value = false;
     if (wordbookInput.value) {
-      wordbookInput.value.value = ''
+      wordbookInput.value.value = "";
     }
   }
 }

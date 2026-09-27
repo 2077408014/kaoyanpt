@@ -64,7 +64,12 @@
     </div>
 
     <!-- 作业提交弹窗 -->
-    <el-dialog v-model="asmVisible" :title="current?.title || '作业'" width="560px">
+    <el-dialog
+      v-model="asmVisible"
+      :title="current?.title || '作业'"
+      width="560px"
+      @paste="handleSubmitPaste"
+    >
       <div v-if="current" class="asm-body">
         <div class="asm-meta">
           <el-tag v-if="!current.due_at" type="info" effect="plain" size="small">无截止时间</el-tag>
@@ -113,9 +118,38 @@
           type="textarea"
           :rows="6"
           :disabled="overdueCurrent"
-          placeholder="请在此输入作业内容"
+          placeholder="请在此输入作业内容，可直接 Ctrl+V 粘贴图片"
           style="margin-top: 12px"
         />
+
+        <!-- 作业图片 -->
+        <div class="sub-img-row">
+          <div v-for="(p, i) in submitImages" :key="p" class="img-item">
+            <el-image
+              :src="'/uploads/' + p"
+              :preview-src-list="submitPreviewList"
+              :initial-index="i"
+              fit="cover"
+              class="img-thumb"
+            />
+            <el-icon
+              v-if="!overdueCurrent"
+              class="img-del"
+              @click="submitImages.splice(i, 1)"
+            ><Close /></el-icon>
+          </div>
+          <el-upload
+            v-if="!overdueCurrent && submitImages.length < 9"
+            :show-file-list="false"
+            :http-request="handleSubImageUpload"
+            accept="image/jpeg,image/png,image/webp"
+            :disabled="subImgUploading"
+          >
+            <div class="img-add" v-loading="subImgUploading">
+              <el-icon><Plus /></el-icon>
+            </div>
+          </el-upload>
+        </div>
       </div>
       <template #footer>
         <el-button @click="asmVisible = false">关闭</el-button>
@@ -132,103 +166,131 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+<script setup>
+import { Close, Plus } from '@element-plus/icons-vue';
+import { ref, computed, onMounted } from "vue";
+import { useRoute } from "vue-router";
+import { ElMessage, ElMessageBox } from "element-plus";
 import {
-  studentClassApi,
-  type Announcement, type Assignment,
-} from '../../api/organization'
-
-const route = useRoute()
-const classId = Number(route.params.classId)
-
-const className = ref('班级详情')
-const activeTab = ref('announcements')
-const activeAnn = ref<number[]>([])
-
-const announcements = ref<Announcement[]>([])
-const annLoading = ref(false)
-const assignments = ref<Assignment[]>([])
-const asmLoading = ref(false)
-
-const asmVisible = ref(false)
-const current = ref<Assignment | null>(null)
-const submitContent = ref('')
-const submitting = ref(false)
-
-const overdueCurrent = computed(() =>
-  !!current.value?.due_at && isOverdue(current.value.due_at)
-)
-
+  studentClassApi
+} from "../../api/organization";
+const route = useRoute();
+const classId = Number(route.params.classId);
+const className = ref("班级详情");
+const activeTab = ref("announcements");
+const activeAnn = ref([]);
+const announcements = ref([]);
+const annLoading = ref(false);
+const assignments = ref([]);
+const asmLoading = ref(false);
+const asmVisible = ref(false);
+const current = ref(null);
+const submitContent = ref("");
+const submitImages = ref([]);
+const subImgUploading = ref(false);
+const submitting = ref(false);
+const overdueCurrent = computed(
+  () => !!current.value?.due_at && isOverdue(current.value.due_at)
+);
+const submitPreviewList = computed(() => submitImages.value.map((p) => "/uploads/" + p));
 async function loadAll() {
-  annLoading.value = true
-  asmLoading.value = true
+  annLoading.value = true;
+  asmLoading.value = true;
   try {
     const [myClasses, anns, asms] = await Promise.all([
       studentClassApi.my(),
       studentClassApi.announcements(classId),
-      studentClassApi.assignments(classId),
-    ])
-    const mine = myClasses.find(c => c.id === classId)
-    if (mine) className.value = mine.name
-    announcements.value = anns
-    assignments.value = asms
-    if (anns.length) activeAnn.value = [anns[0].id]
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '加载失败')
+      studentClassApi.assignments(classId)
+    ]);
+    const mine = myClasses.find((c) => c.id === classId);
+    if (mine) className.value = mine.name;
+    announcements.value = anns;
+    assignments.value = asms;
+    if (anns.length) activeAnn.value = [anns[0].id];
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "加载失败");
   } finally {
-    annLoading.value = false
-    asmLoading.value = false
+    annLoading.value = false;
+    asmLoading.value = false;
   }
 }
-
-function openAssignment(row: Assignment) {
-  current.value = row
-  submitContent.value = row.my_submission?.content || ''
-  asmVisible.value = true
+function openAssignment(row) {
+  current.value = row;
+  submitContent.value = row.my_submission?.content || "";
+  submitImages.value = [...row.my_submission?.images || []];
+  asmVisible.value = true;
 }
-
+async function handleSubImageUpload(options) {
+  if (options.file.size > 10 * 1024 * 1024) {
+    ElMessage.warning("图片不能超过 10MB");
+    return;
+  }
+  subImgUploading.value = true;
+  try {
+    const { image_path } = await studentClassApi.uploadSubmissionImage(options.file);
+    submitImages.value.push(image_path);
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "图片上传失败");
+  } finally {
+    subImgUploading.value = false;
+  }
+}
+function handleSubmitPaste(e) {
+  if (overdueCurrent.value) return;
+  const items = e.clipboardData?.items;
+  if (!items) return;
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (item.type.startsWith("image/")) {
+      e.preventDefault();
+      if (submitImages.value.length >= 9) {
+        ElMessage.warning("最多 9 张图片");
+        return;
+      }
+      const file = item.getAsFile();
+      if (file) {
+        handleSubImageUpload({ file });
+      }
+      return;
+    }
+  }
+}
 async function handleSubmit() {
-  if (!current.value) return
-  if (!submitContent.value.trim()) {
-    ElMessage.warning('作业内容不能为空')
-    return
+  if (!current.value) return;
+  if (!submitContent.value.trim() && submitImages.value.length === 0) {
+    ElMessage.warning("作业内容和图片至少填写一项");
+    return;
   }
   if (current.value.my_submission) {
     try {
-      await ElMessageBox.confirm('重新提交会清空原有评分，确定提交吗？', '确认重新提交', {
-        type: 'warning',
-      })
+      await ElMessageBox.confirm("重新提交会清空原有评分，确定提交吗？", "确认重新提交", {
+        type: "warning"
+      });
     } catch {
-      return
+      return;
     }
   }
-  submitting.value = true
+  submitting.value = true;
   try {
-    const sub = await studentClassApi.submit(current.value.id, submitContent.value)
-    ElMessage.success('提交成功')
-    const idx = assignments.value.findIndex(a => a.id === current.value!.id)
-    if (idx >= 0) assignments.value[idx] = { ...assignments.value[idx], my_submission: sub }
-    current.value = assignments.value[idx]
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '提交失败')
+    const sub = await studentClassApi.submit(current.value.id, submitContent.value, submitImages.value);
+    ElMessage.success("提交成功");
+    const idx = assignments.value.findIndex((a) => a.id === current.value.id);
+    if (idx >= 0) assignments.value[idx] = { ...assignments.value[idx], my_submission: sub };
+    current.value = assignments.value[idx];
+  } catch (e) {
+    ElMessage.error(e.response?.data?.detail || "提交失败");
   } finally {
-    submitting.value = false
+    submitting.value = false;
   }
 }
-
-function isOverdue(due: string): boolean {
-  return new Date(due).getTime() <= Date.now()
+function isOverdue(due) {
+  return new Date(due).getTime() <= Date.now();
 }
-
-function formatTime(t?: string | null): string {
-  if (!t) return ''
-  return t.replace('T', ' ').slice(0, 16)
+function formatTime(t) {
+  if (!t) return "";
+  return t.replace("T", " ").slice(0, 16);
 }
-
-onMounted(loadAll)
+onMounted(loadAll);
 </script>
 
 <style scoped>
@@ -260,4 +322,21 @@ onMounted(loadAll)
 }
 .score-line { font-weight: 600; margin-bottom: 6px; }
 .feedback { color: #374151; font-size: 14px; margin-top: 4px; }
+.sub-img-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.img-item { position: relative; }
+.img-thumb { width: 96px; height: 96px; border-radius: 6px; border: 1px solid #e5e7eb; display: block; }
+.img-del {
+  position: absolute; top: -8px; right: -8px;
+  width: 20px; height: 20px; border-radius: 50%;
+  background: #ef4444; color: #fff; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px;
+}
+.img-add {
+  width: 96px; height: 96px; border-radius: 6px;
+  border: 1px dashed #d1d5db; color: #9ca3af;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 22px;
+}
+.img-add:hover { border-color: #409eff; color: #409eff; }
 </style>

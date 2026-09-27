@@ -26,51 +26,46 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive } from 'vue'
-import { ElMessage } from 'element-plus'
-import { useRouter } from 'vue-router'
-import { useUserStore, roleHomePath } from '../stores/user'
-import { login, getMe } from '../api/auth'
-
-const router = useRouter()
-const store = useUserStore()
-const formRef = ref()
-const loading = ref(false)
-
+<script setup>import { ref, reactive } from "vue";
+import { ElMessage } from "element-plus";
+import { useRouter } from "vue-router";
+import { useUserStore, roleHomePath } from "../stores/user";
+import { login, getMe } from "../api/auth";
+const router = useRouter();
+const store = useUserStore();
+const formRef = ref();
+const loading = ref(false);
 const form = reactive({
-  email: '',
-  password: ''
-})
-
+  email: "",
+  password: ""
+});
 const rules = {
-  email: [{ required: true, message: '请输入邮箱', trigger: 'blur' }],
-  password: [{ required: true, message: '请输入密码', trigger: 'blur' }]
-}
-
+  email: [{ required: true, message: "请输入邮箱", trigger: "blur" }],
+  password: [{ required: true, message: "请输入密码", trigger: "blur" }]
+};
 async function handleLogin() {
-  if (!formRef.value) return
-  await formRef.value.validate(async (valid: boolean) => {
-    if (!valid) return
-    loading.value = true
+  if (!formRef.value) return;
+  await formRef.value.validate(async (valid) => {
+    if (!valid) return;
+    loading.value = true;
     try {
-      const response = await login(form)
-      store.setToken(response.access_token)
-      localStorage.setItem('refresh_token', response.refresh_token)
-      const me = await getMe()
-      store.setUser(me)
-      await router.push(roleHomePath(me.role))
-      ElMessage.success('登录成功')
-    } catch (error: any) {
+      const response = await login(form);
+      store.setToken(response.access_token);
+      localStorage.setItem("refresh_token", response.refresh_token);
+      const me = await getMe();
+      store.setUser(me);
+      await router.push(roleHomePath(me.role));
+      ElMessage.success("登录成功");
+    } catch (error) {
       if (error.response?.status === 401) {
-        ElMessage.error('账号或密码错误')
+        ElMessage.error("账号或密码错误");
       } else {
-        ElMessage.error(error.response?.data?.detail || '登录失败')
+        ElMessage.error(error.response?.data?.detail || "登录失败");
       }
     } finally {
-      loading.value = false
+      loading.value = false;
     }
-  })
+  });
 }
 </script>
 

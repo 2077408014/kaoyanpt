@@ -239,7 +239,9 @@ class AssignmentUpdate(BaseModel):
 
 
 class SubmissionUpsert(BaseModel):
-    content: str = Field(..., min_length=1, max_length=10000)
+    # 允许空内容但必须有图片，非空校验在 API 层做
+    content: str = Field(default="", max_length=10000)
+    images: List[str] = Field(default_factory=list, max_length=9)
 
 
 class GradeRequest(BaseModel):
@@ -254,6 +256,7 @@ class SubmissionResponse(BaseModel):
     student_id: int
     student_name: Optional[str] = None
     content: str
+    images: List[str] = []
     submitted_at: Optional[datetime] = None
     score: Optional[int] = None
     feedback: Optional[str] = None

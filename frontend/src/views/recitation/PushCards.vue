@@ -64,221 +64,199 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { VideoPlay } from '@element-plus/icons-vue'
+<script setup>
+import { VideoPlay } from '@element-plus/icons-vue';
+import QuizDialog from '@/views/recitation/QuizDialog.vue';import { ref, reactive, computed, onMounted, onUnmounted } from "vue";
+import { ElMessage } from "element-plus";
 import {
-  getSessionCards, studyWord, completeSession,
-  getPushConfig, savePushConfig, getWordCategories,
-  type SessionCardItem, type PushConfig
-} from '@/api/words'
-import { useSpeech } from '@/composables/useSpeech'
-import QuizDialog from '@/views/recitation/QuizDialog.vue'
-
-const { speak: speakWord } = useSpeech()
-
-const config = reactive<PushConfig>({ count: 10, interval_seconds: 60, category: null, auto_play: true })
-const categories = ref<string[]>([])
-const running = ref(false)
-const sessionId = ref('')
-const sessionWordIds = ref<number[]>([])
-const queue = ref<SessionCardItem[]>([])
-const doneCount = ref(0)
-const current = ref<SessionCardItem | null>(null)
-const showing = ref(false)
-const timers: ReturnType<typeof setTimeout>[] = []
-const notifyGranted = ref(false)
-const quizVisible = ref(false)
-
+  getSessionCards,
+  studyWord,
+  completeSession,
+  getPushConfig,
+  savePushConfig,
+  getWordCategories
+} from "@/api/words";
+import { useSpeech } from "@/composables/useSpeech";
+const { speak: speakWord } = useSpeech();
+const config = reactive({ count: 10, interval_seconds: 60, category: null, auto_play: true });
+const categories = ref([]);
+const running = ref(false);
+const sessionId = ref("");
+const sessionWordIds = ref([]);
+const queue = ref([]);
+const doneCount = ref(0);
+const current = ref(null);
+const showing = ref(false);
+const timers = [];
+const notifyGranted = ref(false);
+const quizVisible = ref(false);
 const percent = computed(() => {
-  const total = sessionWordIds.value.length
-  return total ? Math.round((doneCount.value / total) * 100) : 0
-})
-
+  const total = sessionWordIds.value.length;
+  return total ? Math.round(doneCount.value / total * 100) : 0;
+});
 function requestNotify() {
-  if (!('Notification' in window)) {
-    ElMessage.warning('当前浏览器不支持通知')
-    return
+  if (!("Notification" in window)) {
+    ElMessage.warning("当前浏览器不支持通知");
+    return;
   }
-  Notification.requestPermission().then(p => {
-    notifyGranted.value = p === 'granted'
-    if (notifyGranted.value) ElMessage.success('通知已开启')
-  })
+  Notification.requestPermission().then((p) => {
+    notifyGranted.value = p === "granted";
+    if (notifyGranted.value) ElMessage.success("通知已开启");
+  });
 }
-
 async function loadConfig() {
   try {
-    const cfg = await getPushConfig()
-    Object.assign(config, cfg)
+    const cfg = await getPushConfig();
+    Object.assign(config, cfg);
   } catch {
-    // 使用默认
   }
-  if (config.category === null || config.category === undefined) {
-    config.category = ''
+  if (config.category === null || config.category === void 0) {
+    config.category = "";
   }
 }
-
 async function loadCategories() {
   try {
-    const res = await getWordCategories()
-    categories.value = res.categories.filter(c => c !== '全部')
+    const res = await getWordCategories();
+    categories.value = res.categories.filter((c) => c !== "全部");
   } catch {
-    categories.value = ['CET-4', 'CET-6', '考研']
+    categories.value = ["CET-4", "CET-6", "考研"];
   }
 }
-
 async function saveConfig() {
   try {
-    await savePushConfig({ ...config, category: config.category || null })
-    ElMessage.success('配置已保存')
+    await savePushConfig({ ...config, category: config.category || null });
+    ElMessage.success("配置已保存");
   } catch {
-    ElMessage.success('配置已保存')
+    ElMessage.success("配置已保存");
   }
 }
-
 function clearTimers() {
-  timers.forEach(t => clearTimeout(t))
-  timers.length = 0
+  timers.forEach((t) => clearTimeout(t));
+  timers.length = 0;
 }
-
 async function startSession() {
-  if (running.value) return
-  clearTimers()
-  queue.value = []
-  current.value = null
-  showing.value = false
-  doneCount.value = 0
-  sessionWordIds.value = []
-
-  const category = config.category || undefined
+  if (running.value) return;
+  clearTimers();
+  queue.value = [];
+  current.value = null;
+  showing.value = false;
+  doneCount.value = 0;
+  sessionWordIds.value = [];
+  const category = config.category || void 0;
   try {
-    const res = await getSessionCards(config.count, category)
+    const res = await getSessionCards(config.count, category);
     if (!res.cards.length) {
-      ElMessage.warning('没有可背的单词了，换个分类或先学习')
-      return
+      ElMessage.warning("没有可背的单词了，换个分类或先学习");
+      return;
     }
-    sessionId.value = res.session_id
-    queue.value = [...res.cards]
-    sessionWordIds.value = res.cards.map(c => c.word_id)
-    running.value = true
-    scheduleNext(0)
+    sessionId.value = res.session_id;
+    queue.value = [...res.cards];
+    sessionWordIds.value = res.cards.map((c) => c.word_id);
+    running.value = true;
+    scheduleNext(0);
   } catch {
-    ElMessage.error('获取弹卡队列失败')
+    ElMessage.error("获取弹卡队列失败");
   }
 }
-
-function later(ms: number, fn: () => void) {
+function later(ms, fn) {
   const t = setTimeout(() => {
-    const idx = timers.indexOf(t)
-    if (idx >= 0) timers.splice(idx, 1)
-    fn()
-  }, ms)
-  timers.push(t)
+    const idx = timers.indexOf(t);
+    if (idx >= 0) timers.splice(idx, 1);
+    fn();
+  }, ms);
+  timers.push(t);
 }
-
 async function showNextCard() {
-  if (!running.value) return
+  if (!running.value) return;
   if (queue.value.length === 0) {
-    await finishSession()
-    return
+    await finishSession();
+    return;
   }
-  current.value = queue.value[0]
-  showing.value = true
-  if (config.auto_play) playWord()
+  current.value = queue.value[0];
+  showing.value = true;
+  if (config.auto_play) playWord();
   if (document.hidden) {
-    notifyHiddenCard(current.value)
+    notifyHiddenCard(current.value);
   }
-  later(8000, () => {
-    showing.value = false
-  })
+  later(8e3, () => {
+    showing.value = false;
+  });
 }
-
-function scheduleNext(delayMs: number) {
-  later(delayMs, showNextCard)
+function scheduleNext(delayMs) {
+  later(delayMs, showNextCard);
 }
-
-function notifyHiddenCard(card: SessionCardItem) {
-  if (notifyGranted.value && Notification.permission === 'granted') {
-    const n = new Notification('弹卡背诵', {
-      body: `${card.word}  ${card.phonetic || ''}\n${card.meaning}`,
-      icon: '/favicon.ico'
-    })
-    n.onclick = () => window.focus()
+function notifyHiddenCard(card) {
+  if (notifyGranted.value && Notification.permission === "granted") {
+    const n = new Notification("弹卡背诵", {
+      body: `${card.word}  ${card.phonetic || ""}
+${card.meaning}`,
+      icon: "/favicon.ico"
+    });
+    n.onclick = () => window.focus();
   }
 }
-
 function playWord() {
-  if (current.value?.word) speakWord(current.value.word, { lang: 'en-US' })
+  if (current.value?.word) speakWord(current.value.word, { lang: "en-US" });
 }
-
-async function rate(rating: string) {
-  if (!current.value) return
-  const word = current.value
-  showing.value = false
-  doneCount.value++
-
+async function rate(rating) {
+  if (!current.value) return;
+  const word = current.value;
+  showing.value = false;
+  doneCount.value++;
   try {
     const updated = await studyWord(word.word_id, rating, {
-      session_id: sessionId.value || undefined,
-      source: 'push'
-    })
-    const kept = queue.value.shift()
-    if (updated?.srs_status !== 'reviewed') {
-      const dueMs = Math.round((updated?.due_minutes ?? 1) * 60 * 1000)
+      session_id: sessionId.value || void 0,
+      source: "push"
+    });
+    const kept = queue.value.shift();
+    if (updated?.srs_status !== "reviewed") {
+      const dueMs = Math.round((updated?.due_minutes ?? 1) * 60 * 1e3);
       later(dueMs, () => {
-        if (kept && running.value) queue.value.push(kept)
-      })
+        if (kept && running.value) queue.value.push(kept);
+      });
     }
   } catch {
-    queue.value.shift()
+    queue.value.shift();
   }
-
-  scheduleNext(config.interval_seconds * 1000)
+  scheduleNext(config.interval_seconds * 1e3);
 }
-
 async function finishSession() {
-  running.value = false
-  showing.value = false
-  current.value = null
-  clearTimers()
+  running.value = false;
+  showing.value = false;
+  current.value = null;
+  clearTimers();
   if (sessionId.value) {
     try {
-      await completeSession(sessionId.value)
+      await completeSession(sessionId.value);
     } catch {
-      // 忽略
     }
   }
-  ElMessage.success('本轮弹卡完成！')
+  ElMessage.success("本轮弹卡完成！");
   if (sessionWordIds.value.length) {
-    quizVisible.value = true
+    quizVisible.value = true;
   }
 }
-
 function stopSession() {
-  running.value = false
-  showing.value = false
-  current.value = null
-  clearTimers()
+  running.value = false;
+  showing.value = false;
+  current.value = null;
+  clearTimers();
   if (sessionId.value) {
-    completeSession(sessionId.value)
+    completeSession(sessionId.value);
   }
-  ElMessage.info('已停止弹卡')
+  ElMessage.info("已停止弹卡");
 }
-
 function hideCard() {
-  showing.value = false
+  showing.value = false;
 }
-
 onMounted(async () => {
-  await loadConfig()
-  await loadCategories()
-  notifyGranted.value = 'Notification' in window && Notification.permission === 'granted'
-})
-
+  await loadConfig();
+  await loadCategories();
+  notifyGranted.value = "Notification" in window && Notification.permission === "granted";
+});
 onUnmounted(() => {
-  clearTimers()
-})
+  clearTimers();
+});
 </script>
 
 <style scoped>

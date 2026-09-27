@@ -23,16 +23,14 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref } from 'vue'
-import WordModule from './recitation/WordModule.vue'
-import PoliticsModule from './recitation/PoliticsModule.vue'
-import ReminderModule from './recitation/ReminderModule.vue'
-import VoiceModule from './recitation/VoiceModule.vue'
-import PushCards from './recitation/PushCards.vue'
-import RecordsModule from './recitation/RecordsModule.vue'
-
-const activeTab = ref('words')
+<script setup>import { ref } from "vue";
+import WordModule from "./recitation/WordModule.vue";
+import PoliticsModule from "./recitation/PoliticsModule.vue";
+import ReminderModule from "./recitation/ReminderModule.vue";
+import VoiceModule from "./recitation/VoiceModule.vue";
+import PushCards from "./recitation/PushCards.vue";
+import RecordsModule from "./recitation/RecordsModule.vue";
+const activeTab = ref("words");
 </script>
 
 <style scoped>

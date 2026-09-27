@@ -28,7 +28,7 @@
       <el-table-column prop="session_id" label="会话ID" width="120" show-overflow-tooltip />
       <el-table-column prop="source" label="来源" width="90">
         <template #default="scope">
-          <el-tag>{{ ({ card: '卡片', push: '弹卡', quiz: '测验' } as Record<string, string>)[scope.row.source] || scope.row.source }}</el-tag>
+          <el-tag>{{ ({ card: '卡片', push: '弹卡', quiz: '测验' })[scope.row.source] || scope.row.source }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="total" label="单词数" width="90" />
@@ -58,62 +58,56 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { Download, Upload } from '@element-plus/icons-vue'
+<script setup>
+import { Download, Upload } from '@element-plus/icons-vue';import { ref, onMounted } from "vue";
+import { ElMessage } from "element-plus";
 import {
-  getStudyRecords, exportStudyRecords, importStudyRecords,
-  type RecordSummaryItem
-} from '@/api/words'
-
-const records = ref<RecordSummaryItem[]>([])
-const page = ref(1)
-const pageSize = ref(10)
-const total = ref(0)
-const importInput = ref<HTMLInputElement | null>(null)
-
+  getStudyRecords,
+  exportStudyRecords,
+  importStudyRecords
+} from "@/api/words";
+const records = ref([]);
+const page = ref(1);
+const pageSize = ref(10);
+const total = ref(0);
+const importInput = ref(null);
 async function loadRecords() {
   try {
-    const res = await getStudyRecords(page.value, pageSize.value)
-    records.value = res.items
-    total.value = res.total
+    const res = await getStudyRecords(page.value, pageSize.value);
+    records.value = res.items;
+    total.value = res.total;
   } catch {
-    records.value = []
-    total.value = 0
+    records.value = [];
+    total.value = 0;
   }
 }
-
 async function handleExport() {
   try {
-    await exportStudyRecords()
-    ElMessage.success('已导出')
+    await exportStudyRecords();
+    ElMessage.success("已导出");
   } catch {
-    ElMessage.error('导出失败')
+    ElMessage.error("导出失败");
   }
 }
-
 function triggerImport() {
-  importInput.value?.click()
+  importInput.value?.click();
 }
-
-async function handleImport(event: Event) {
-  const target = event.target as HTMLInputElement
-  if (!target.files?.length) return
-  const file = target.files[0]
+async function handleImport(event) {
+  const target = event.target;
+  if (!target.files?.length) return;
+  const file = target.files[0];
   try {
-    const res = await importStudyRecords(file)
-    ElMessage.success(res.message || '导入成功')
-    await loadRecords()
-  } catch (error: any) {
-    const msg = error.response?.data?.detail || error.message || '导入失败'
-    ElMessage.error(msg)
+    const res = await importStudyRecords(file);
+    ElMessage.success(res.message || "导入成功");
+    await loadRecords();
+  } catch (error) {
+    const msg = error.response?.data?.detail || error.message || "导入失败";
+    ElMessage.error(msg);
   } finally {
-    if (importInput.value) importInput.value.value = ''
+    if (importInput.value) importInput.value.value = "";
   }
 }
-
-onMounted(loadRecords)
+onMounted(loadRecords);
 </script>
 
 <style scoped>
