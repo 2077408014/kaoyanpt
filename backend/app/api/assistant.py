@@ -79,7 +79,7 @@ def _parse_create_teacher(intent) -> Optional[dict]:
     username = str(args.get("username", "")).strip()
     email = str(args.get("email", "")).strip()
     password = str(args.get("password", "")).strip()
-    if len(username) < 3 or "@" not in email:
+    if len(username) < 1 or "@" not in email:
         return None
     if len(password) < 6:
         password = "123456"  # 缺省初始密码，卡片中可改

@@ -85,7 +85,7 @@ class ClassListResponse(BaseModel):
 # ---------- 员工账号（教师 / 机构管理者） ----------
 
 class StaffUserCreate(BaseModel):
-    username: str = Field(..., min_length=3, max_length=50)
+    username: str = Field(..., min_length=1, max_length=50)
     email: str = Field(..., min_length=3, max_length=100)
     password: str = Field(..., min_length=6)
     role: Literal["teacher", "institution_admin"]
@@ -93,7 +93,7 @@ class StaffUserCreate(BaseModel):
 
 
 class StaffUserUpdate(BaseModel):
-    username: Optional[str] = Field(None, min_length=3, max_length=50)
+    username: Optional[str] = Field(None, min_length=1, max_length=50)
     email: Optional[str] = Field(None, min_length=3, max_length=100)
     password: Optional[str] = Field(None, min_length=6)  # 传值=重置密码，None=不改
     role: Optional[Literal["teacher", "institution_admin"]] = None
@@ -294,12 +294,12 @@ class InstitutionClassCreate(BaseModel):
 
 
 class InstitutionTeacherCreate(BaseModel):
-    username: str = Field(..., min_length=3, max_length=50)
+    username: str = Field(..., min_length=1, max_length=50)
     email: str = Field(..., min_length=3, max_length=100)
     password: str = Field(..., min_length=6)
 
 
 class InstitutionTeacherUpdate(BaseModel):
-    username: Optional[str] = Field(None, min_length=3, max_length=50)
+    username: Optional[str] = Field(None, min_length=1, max_length=50)
     email: Optional[str] = Field(None, min_length=3, max_length=100)
     password: Optional[str] = Field(None, min_length=6)  # 传值=重置密码，None=不改
