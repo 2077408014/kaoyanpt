@@ -321,7 +321,7 @@
       </template>
     </el-dialog>
 
-    <QuizDialog :visible="quizVisible" :word-ids="quizWordIds" @close="quizVisible = false" />
+    <QuizDialog :visible="quizVisible" :word-ids="quizWordIds" @close="handleQuizClose" />
   </div>
 </template>
 
@@ -623,6 +623,17 @@ function startRoundQuiz() {
     ElMessage.warning("本轮没有单词可测验");
   }
 }
+function handleQuizClose() {
+  quizVisible.value = false;
+  // 测验结束后回到轮次完成弹窗，让用户继续下一轮；最后一轮则收尾
+  if (currentRound.value >= totalRounds.value) {
+    allRoundsComplete.value = true;
+    roundQueue.value = [];
+    clearStudySession();
+  } else {
+    roundCompleteVisible.value = true;
+  }
+}
 async function saveCurrentSession() {
   if (totalWordsToday.value === 0) return;
   const session = {
@@ -635,6 +646,7 @@ async function saveCurrentSession() {
     study_mode: studyMode.value,
     batch_size: batchSize.value,
     all_word_ids: todayWords.value.map((w) => w.id),
+    today_words: todayWords.value,
     completed_rounds: completedRounds.value,
     category: selectedCategory.value || null
   };
@@ -659,7 +671,7 @@ async function resumeSession() {
   if (!session) return;
   currentRound.value = session.current_round;
   totalRounds.value = session.total_rounds;
-  roundQueue.value = session.round_queue.map((item) => ({
+  roundQueue.value = (session.round_queue || []).map((item) => ({
     wordId: item.wordId || item.word_id,
     word: item.word,
     phonetic: item.phonetic,
@@ -678,14 +690,32 @@ async function resumeSession() {
   completedRounds.value = session.completed_rounds || 0;
   studyMode.value = session.study_mode;
   batchSize.value = session.batch_size;
-  allRoundsComplete.value = false;
-  try {
-    const category = selectedCategory.value || void 0;
-    const result = await getTodayWords(dailyCount.value, category);
-    todayWords.value = [...result.review, ...result.new];
-  } catch {
+  // 优先使用存档时的完整词表，避免重新请求 /today 拿到「下一批未学词」导致轮次错位
+  if (Array.isArray(session.today_words) && session.today_words.length) {
+    todayWords.value = session.today_words;
+  } else {
+    try {
+      const category = selectedCategory.value || void 0;
+      const result = await getTodayWords(dailyCount.value, category);
+      todayWords.value = [...result.review, ...result.new];
+    } catch {
+    }
   }
-  ElMessage.success("已恢复背诵进度");
+  if (roundQueue.value.length > 0) {
+    // 轮次进行中：直接显示剩余卡片
+    allRoundsComplete.value = false;
+    ElMessage.success("已恢复背诵进度");
+    return;
+  }
+  // 存档时一轮刚好背完（队列为空）：回到轮次完成弹窗，而不是掉进「今日已学完」死胡同
+  if (currentRound.value >= totalRounds.value) {
+    allRoundsComplete.value = true;
+    roundQueue.value = [];
+    await clearStudySession();
+  } else {
+    allRoundsComplete.value = false;
+    roundCompleteVisible.value = true;
+  }
 }
 async function discardSession() {
   resumeVisible.value = false;
